@@ -1,5 +1,12 @@
 /**
- * Matrix EA (Trix Convergence-Divergence)
+ * Matrix EA: 2-Trix Swing System
+ *
+ * - Entry:      combination of fast and slow Slope(MA), default is a TriEMA
+ * - TakeProfit: fix pip value
+ * - StopLoss:   fix pip value
+ *
+ * Big game: After a loss the system doubles the lotsize a limited number of times (default: 1).
+ *
  *
  * @see  https://www.mql5.com/en/code/165
  */
@@ -38,7 +45,7 @@ int    os.slippage    = 1;
  */
 int onTick() {
    if (Volume[0] == 1) {
-      if (!OrdersTotal())              // TODO: simplified, works in Tester only
+      if (!OrdersTotal())                          // TODO: simplified, works in Tester only
          OpenPosition();
    }
    return(last_error);
@@ -55,7 +62,7 @@ void OpenPosition() {
    int fastTrixTrend = icTrix(NULL, Trix.Fast.Periods, PRICE_MEDIAN, Slope.MODE_TREND, 1);
 
    if (slowTrixTrend > 0) {                        // if slowTrix[1] is rising
-      if (fastTrixTrend == 1) {                    // and fastTrix[1] trend turned up
+      if (fastTrixTrend == 1) {                    // and fastTrix[1] trend turnes up
          lots = CalculateLots();
          tp   = Ask + TakeProfit.Pip * Pips;
          sl   = Bid -   StopLoss.Pip * Pips;
@@ -63,8 +70,8 @@ void OpenPosition() {
       }
    }
 
-   else /*slowTrixTrend < 0*/ {                    // else if slowTrix[1] is falling
-      if (fastTrixTrend == -1) {                   // and fastTrix[] trend turned down
+   else /*slowTrixTrend < 0*/ {                    // if slowTrix[1] is falling
+      if (fastTrixTrend == -1) {                   // and fastTrix[] trend turnes down
          lots = CalculateLots();
          tp   = Bid - TakeProfit.Pip * Pips;
          sl   = Ask +   StopLoss.Pip * Pips;
@@ -86,16 +93,16 @@ double CalculateLots() {
    int history = OrdersHistoryTotal();                   // TODO: over-simplified, works only in Tester
    if (history < 2) return(lots);
 
-   OrderSelect(history-1, SELECT_BY_POS, MODE_HISTORY);  // last closed ticket
+   OrderSelect(history-1, SELECT_BY_POS, MODE_HISTORY);  // the last closed ticket
    double lastOpenPrice = OrderOpenPrice();
 
-   OrderSelect(history-2, SELECT_BY_POS, MODE_HISTORY);  // previous closed ticket
+   OrderSelect(history-2, SELECT_BY_POS, MODE_HISTORY);  // the previous closed ticket
    int    prevType      = OrderType();
    double prevOpenPrice = OrderOpenPrice();
    double prevLots      = OrderLots();
 
 
-   // this logic looks like complete non-sense
+   // this logic seems to make no sense
    if (prevType == OP_BUY) {
       if (prevOpenPrice > lastOpenPrice && m.level < DoublingCount) {
          lots = prevLots * 2;
@@ -116,18 +123,6 @@ double CalculateLots() {
       }
    }
    return(lots);
-}
-
-
-/**
- * Tester optimization criteria
- *
- * @return double - optimization score
- */
-double OnTester() {
-   if (TakeProfit.Pip < StopLoss.Pip)
-      return(0);
-   return(GetPlRatio() / (GetMaxConsecutiveLosses()+1));
 }
 
 
@@ -166,7 +161,7 @@ double GetMaxConsecutiveLosses() {
    double thisOpenPrice, nextOpenPrice;
    int    thisType, counter, max, history = OrdersHistoryTotal();
 
-   // again the logic is utter non-sense
+   // again this logic seems to make no sense
    for (int i=0; i < history-1; i+=2) {
       OrderSelect(i, SELECT_BY_POS, MODE_HISTORY);
       thisType      = OrderType();
@@ -191,6 +186,18 @@ double GetMaxConsecutiveLosses() {
       }
    }
    return(max);
+}
+
+
+/**
+ * Tester optimization criteria
+ *
+ * @return double - optimization score
+ */
+double OnTester() {
+   if (TakeProfit.Pip < StopLoss.Pip)
+      return(0);
+   return(GetPlRatio() / (GetMaxConsecutiveLosses()+1));
 }
 
 

@@ -213,7 +213,7 @@ bool     tester.reduceStatusWrites  = true;        // whether to skip redundant 
 
 
 #include <app/SnowRoller/init.mqh>
-#include <app/SnowRoller/deinit.mqh>
+//#include <app/SnowRoller/deinit.mqh>
 
 
 /*

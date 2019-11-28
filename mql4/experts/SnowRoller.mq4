@@ -3599,9 +3599,11 @@ bool RestoreSequence(bool interactive) {
    interactive = interactive!=0;
    if (IsLastError())                return(false);
 
-   debug("RestoreSequence(0.1)->ReadStatus()...");
+   OutputDebugStringA("RestoreSequence(0.1)->ReadStatus()...");
+
    bool success = ReadStatus();
-   debug("RestoreSequence(0.2)  OK");
+
+   OutputDebugStringA("RestoreSequence(0.2)  OK");
 
    if (!success)                     return(false);      // read the status file
    if (!ValidateInputs(interactive)) return(false);      // validate restored input parameters
@@ -3616,116 +3618,180 @@ bool RestoreSequence(bool interactive) {
  * @return bool - success status
  */
 bool ReadStatus() {
-   if (IsLastError())  return(false);
-   if (!sequence.id)   return(!catch("ReadStatus(1)  illegal value of sequence.id = "+ sequence.id, ERR_RUNTIME_ERROR));
+   string file = "F:\\Projects\\mt4\\mql\\mql4\\files\\presets\\xauusd.SR.5462.set";
 
-   string file = GetStatusFileName();
-   if (!IsFileA(file)) return(!catch("ReadStatus(2)  status file "+ DoubleQuoteStr(file) +" not found", ERR_FILE_NOT_FOUND));
-
-   // [Common]
    string section = "Common";
-   string sAccount       = GetIniStringA(file, section, "Account",       "");
-   string sSymbol        = GetIniStringA(file, section, "Symbol",        "");
-   string sSequenceId    = GetIniStringA(file, section, "Sequence.ID",   "");
-   string sGridDirection = GetIniStringA(file, section, "GridDirection", "");
+   string sAccount       = GetIniStringRawA(file, section, "Account",       "");
+   string sSymbol        = GetIniStringRawA(file, section, "Symbol",        "");
+   string sSequenceId    = GetIniStringRawA(file, section, "Sequence.ID",   "");
+   string sGridDirection = GetIniStringRawA(file, section, "GridDirection", "");
 
-   string sAccountRequired = ShortAccountCompany() +":"+ GetAccountNumber();
-   if (sAccount != sAccountRequired) return(!catch("ReadStatus(3)  account mis-match "+ DoubleQuoteStr(sAccount) +"/"+ DoubleQuoteStr(sAccountRequired) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   if (sSymbol  != Symbol())         return(!catch("ReadStatus(4)  symbol mis-match "+ DoubleQuoteStr(sSymbol) +"/"+ DoubleQuoteStr(Symbol()) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   string sValue = sSequenceId;
-   if (StrLeft(sValue, 1) == "T") {
-      sequence.isTest = true;
-      sValue = StrSubstr(sValue, 1);
-   }
-   if (sValue != ""+ sequence.id)    return(!catch("ReadStatus(5)  invalid or missing Sequence.ID "+ DoubleQuoteStr(sSequenceId) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   Sequence.ID = sSequenceId;
-   if (sGridDirection == "")         return(!catch("ReadStatus(6)  invalid or missing GridDirection "+ DoubleQuoteStr(sGridDirection) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   GridDirection = sGridDirection;
+   section = "SnowRoller-001";
+   string sCreated               = GetIniStringRawA(file, section, "Created",                "");     // string   Created=Tue, 2019.09.24 01:00:00
+   string sGridSize              = GetIniStringRawA(file, section, "GridSize",               "");     // int      GridSize=20
+   string sLotSize               = GetIniStringRawA(file, section, "LotSize",                "");     // double   LotSize=0.01
+   string sStartLevel            = GetIniStringRawA(file, section, "StartLevel",             "");     // int      StartLevel=0
+   string sStartConditions       = GetIniStringRawA(file, section, "StartConditions",        "");     // string   StartConditions=@trend(HalfTrend:H1:3)
+   string sStopConditions        = GetIniStringRawA(file, section, "StopConditions",         "");     // string   StopConditions=@trend(HalfTrend:H1:3) || @profit(2%)
+   string sAutoResume            = GetIniStringRawA(file, section, "AutoResume",             "");     // bool     AutoResume=1
+   string sAutoRestart           = GetIniStringRawA(file, section, "AutoRestart",            "");     // bool     AutoRestart=1
+   string sShowProfitInPercent   = GetIniStringRawA(file, section, "ShowProfitInPercent",    "");     // bool     ShowProfitInPercent=1
+   string sSessionbreakStartTime = GetIniStringRawA(file, section, "Sessionbreak.StartTime", "");     // datetime Sessionbreak.StartTime=86160
+   string sSessionbreakEndTime   = GetIniStringRawA(file, section, "Sessionbreak.EndTime",   "");     // datetime Sessionbreak.EndTime=3730
 
-   // [SnowRoller-xxx] last cycle
-   string sections[];
-   int size = ReadStatusSections(file, sections); if (!size) return(false);
+   string sSessionbreakWaiting   = GetIniStringRawA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
+   string sStartEquity           = GetIniStringRawA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
+   string sMaxProfit             = GetIniStringRawA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
+   string sMaxDrawdown           = GetIniStringRawA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
+   string sStarts                = GetIniStringRawA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
+   string sStops                 = GetIniStringRawA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
+   string sGridBase              = GetIniStringRawA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
+   string sMissedLevels          = GetIniStringRawA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
+   string sPendingOrders         = GetIniStringRawA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
+   string sOpenPositions         = GetIniStringRawA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
+   string sClosedOrders          = GetIniStringRawA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
 
-   // input parameters
-   section = sections[size-1];
-   string sCreated               = GetIniStringA(file, section, "Created",                "");     // string   Created=Tue, 2019.09.24 01:00:00
-   string sGridSize              = GetIniStringA(file, section, "GridSize",               "");     // int      GridSize=20
-   string sLotSize               = GetIniStringA(file, section, "LotSize",                "");     // double   LotSize=0.01
-   string sStartLevel            = GetIniStringA(file, section, "StartLevel",             "");     // int      StartLevel=0
-   string sStartConditions       = GetIniStringA(file, section, "StartConditions",        "");     // string   StartConditions=@trend(HalfTrend:H1:3)
-   string sStopConditions        = GetIniStringA(file, section, "StopConditions",         "");     // string   StopConditions=@trend(HalfTrend:H1:3) || @profit(2%)
-   string sAutoResume            = GetIniStringA(file, section, "AutoResume",             "");     // bool     AutoResume=1
-   string sAutoRestart           = GetIniStringA(file, section, "AutoRestart",            "");     // bool     AutoRestart=1
-   string sShowProfitInPercent   = GetIniStringA(file, section, "ShowProfitInPercent",    "");     // bool     ShowProfitInPercent=1
-   string sSessionbreakStartTime = GetIniStringA(file, section, "Sessionbreak.StartTime", "");     // datetime Sessionbreak.StartTime=86160
-   string sSessionbreakEndTime   = GetIniStringA(file, section, "Sessionbreak.EndTime",   "");     // datetime Sessionbreak.EndTime=3730
+   string s2SessionbreakWaiting  = GetIniStringRawA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
+   string s2StartEquity          = GetIniStringRawA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
+   string s2MaxProfit            = GetIniStringRawA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
+   string s2MaxDrawdown          = GetIniStringRawA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
+   string s2Starts               = GetIniStringRawA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
+   string s2Stops                = GetIniStringRawA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
+   string s2GridBase             = GetIniStringRawA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
+   string s2MissedLevels         = GetIniStringRawA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
+   string s2PendingOrders        = GetIniStringRawA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
+   string s2OpenPositions        = GetIniStringRawA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
+   string s2ClosedOrders         = GetIniStringRawA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
 
-   sequence.created = sCreated;                                      // TODO: convert to datetime and validate
-   if (!StrIsDigit(sGridSize))              return(!catch("ReadStatus(7)  invalid or missing GridSize "+ DoubleQuoteStr(sGridSize) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   GridSize = StrToInteger(sGridSize);
-   if (!StrIsNumeric(sLotSize))             return(!catch("ReadStatus(8)  invalid or missing LotSize "+ DoubleQuoteStr(sLotSize) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   LotSize = StrToDouble(sLotSize);
-   if (!StrIsDigit(sStartLevel))            return(!catch("ReadStatus(9)  invalid or missing StartLevel "+ DoubleQuoteStr(sStartLevel) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   StartLevel          = StrToInteger(sStartLevel);
-   StartConditions     = sStartConditions;
-   StopConditions      = sStopConditions;
-   AutoResume          = StrToBool(sAutoResume);
-   AutoRestart         = StrToBool(sAutoRestart);
-   ShowProfitInPercent = StrToBool(sShowProfitInPercent);            // optional
-   if (!StrIsDigit(sSessionbreakStartTime)) return(!catch("ReadStatus(10)  invalid or missing Sessionbreak.StartTime "+ DoubleQuoteStr(sSessionbreakStartTime) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   Sessionbreak.StartTime = StrToInteger(sSessionbreakStartTime);    // TODO: convert input to string and validate
-   if (!StrIsDigit(sSessionbreakEndTime))   return(!catch("ReadStatus(11)  invalid or missing Sessionbreak.EndTime "+ DoubleQuoteStr(sSessionbreakEndTime) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   Sessionbreak.EndTime = StrToInteger(sSessionbreakEndTime);        // TODO: convert input to string and validate
+   string s3SessionbreakWaiting  = GetIniStringRawA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
+   string s3StartEquity          = GetIniStringRawA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
+   string s3MaxProfit            = GetIniStringRawA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
+   string s3MaxDrawdown          = GetIniStringRawA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
+   string s3Starts               = GetIniStringRawA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
+   string s3Stops                = GetIniStringRawA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
+   string s3GridBase             = GetIniStringRawA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
+   string s3MissedLevels         = GetIniStringRawA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
+   string s3PendingOrders        = GetIniStringRawA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
+   string s3OpenPositions        = GetIniStringRawA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
+   string s3ClosedOrders         = GetIniStringRawA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
 
-   // runtime vars
-   string sSessionbreakWaiting = GetIniStringA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
-   string sStartEquity         = GetIniStringA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
-   string sMaxProfit           = GetIniStringA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
-   string sMaxDrawdown         = GetIniStringA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
-   string sStarts              = GetIniStringA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
-   string sStops               = GetIniStringA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
-   string sGridBase            = GetIniStringA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
-   string sMissedLevels        = GetIniStringA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
-   string sPendingOrders       = GetIniStringA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
-   string sOpenPositions       = GetIniStringA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
-   string sClosedOrders        = GetIniStringA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
+   string s4SessionbreakWaiting  = GetIniStringRawA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
+   string s4StartEquity          = GetIniStringRawA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
+   string s4MaxProfit            = GetIniStringRawA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
+   string s4MaxDrawdown          = GetIniStringRawA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
+   string s4Starts               = GetIniStringRawA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
+   string s4Stops                = GetIniStringRawA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
+   string s4GridBase             = GetIniStringRawA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
+   string s4MissedLevels         = GetIniStringRawA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
+   string s4PendingOrders        = GetIniStringRawA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
+   string s4OpenPositions        = GetIniStringRawA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
+   string s4ClosedOrders         = GetIniStringRawA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
 
-   sessionbreak.waiting = StrToBool(sSessionbreakWaiting);
-   if (!StrIsNumeric(sStartEquity))         return(!catch("ReadStatus(12)  invalid or missing sequence.startEquity "+ DoubleQuoteStr(sStartEquity) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   sequence.startEquity = StrToDouble(sStartEquity);
-   if (LT(sequence.startEquity, 0))         return(!catch("ReadStatus(13)  illegal sequence.startEquity "+ DoubleQuoteStr(sStartEquity) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   if (!StrIsNumeric(sMaxProfit))           return(!catch("ReadStatus(14)  invalid or missing sequence.maxProfit "+ DoubleQuoteStr(sMaxProfit) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   sequence.maxProfit = StrToDouble(sMaxProfit);
-   if (!StrIsNumeric(sMaxDrawdown))         return(!catch("ReadStatus(15)  invalid or missing sequence.maxDrawdown "+ DoubleQuoteStr(sMaxDrawdown) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   sequence.maxDrawdown = StrToDouble(sMaxDrawdown);
-   bool success = ReadStatus.ParseStartStop(sStarts, sequence.start.event, sequence.start.time, sequence.start.price, sequence.start.profit);
-   if (!success)                            return(!catch("ReadStatus(16)  invalid or missing sequence.starts "+ DoubleQuoteStr(sStarts) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   success = ReadStatus.ParseStartStop(sStops, sequence.stop.event, sequence.stop.time, sequence.stop.price, sequence.stop.profit);
-   if (!success)                            return(!catch("ReadStatus(17)  invalid or missing sequence.stops "+ DoubleQuoteStr(sStops) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   if (ArraySize(sequence.start.event) != ArraySize(sequence.stop.event))
-                                            return(!catch("ReadStatus(18)  sequence.starts["+ ArraySize(sequence.start.event) +"]/sequence.stops["+ ArraySize(sequence.stop.event) +"] mis-match in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   success = ReadStatus.ParseGridBase(sGridBase);
-   if (!success)                            return(!catch("ReadStatus(19)  invalid or missing gridbase history "+ DoubleQuoteStr(sGridBase) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   success = ReadStatus.ParseMissedLevels(sMissedLevels);
-   if (!success)                            return(!catch("ReadStatus(20)  invalid missed gridlevels "+ DoubleQuoteStr(sMissedLevels) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   success = ReadStatus.ParseTickets(sPendingOrders, ignorePendingOrders);
-   if (!success)                            return(!catch("ReadStatus(21)  invalid ignored pending orders "+ DoubleQuoteStr(sPendingOrders) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   success = ReadStatus.ParseTickets(sOpenPositions, ignoreOpenPositions);
-   if (!success)                            return(!catch("ReadStatus(22)  invalid ignored open positions "+ DoubleQuoteStr(sPendingOrders) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
-   success = ReadStatus.ParseTickets(sOpenPositions, ignoreClosedPositions);
-   if (!success)                            return(!catch("ReadStatus(23)  invalid ignored closed positions "+ DoubleQuoteStr(sPendingOrders) +" in status file "+ DoubleQuoteStr(file), ERR_INVALID_FILE_FORMAT));
+   string s5SessionbreakWaiting  = GetIniStringRawA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
+   string s5StartEquity          = GetIniStringRawA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
+   string s5MaxProfit            = GetIniStringRawA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
+   string s5MaxDrawdown          = GetIniStringRawA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
+   string s5Starts               = GetIniStringRawA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
+   string s5Stops                = GetIniStringRawA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
+   string s5GridBase             = GetIniStringRawA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
+   string s5MissedLevels         = GetIniStringRawA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
+   string s5PendingOrders        = GetIniStringRawA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
+   string s5OpenPositions        = GetIniStringRawA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
+   string s5ClosedOrders         = GetIniStringRawA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
+
+   string s6SessionbreakWaiting  = GetIniStringRawA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
+   string s6StartEquity          = GetIniStringRawA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
+   string s6MaxProfit            = GetIniStringRawA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
+   string s6MaxDrawdown          = GetIniStringRawA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
+   string s6Starts               = GetIniStringRawA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
+   string s6Stops                = GetIniStringRawA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
+   string s6GridBase             = GetIniStringRawA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
+   string s6MissedLevels         = GetIniStringRawA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
+   string s6PendingOrders        = GetIniStringRawA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
+   string s6OpenPositions        = GetIniStringRawA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
+   string s6ClosedOrders         = GetIniStringRawA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
+
+   string s7SessionbreakWaiting  = GetIniStringRawA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
+   string s7StartEquity          = GetIniStringRawA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
+   string s7MaxProfit            = GetIniStringRawA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
+   string s7MaxDrawdown          = GetIniStringRawA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
+   string s7Starts               = GetIniStringRawA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
+   string s7Stops                = GetIniStringRawA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
+   string s7GridBase             = GetIniStringRawA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
+   string s7MissedLevels         = GetIniStringRawA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
+   string s7PendingOrders        = GetIniStringRawA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
+   string s7OpenPositions        = GetIniStringRawA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
+   string s7ClosedOrders         = GetIniStringRawA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
+
+   string s8SessionbreakWaiting  = GetIniStringRawA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
+   string s8StartEquity          = GetIniStringRawA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
+   string s8MaxProfit            = GetIniStringRawA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
+   string s8MaxDrawdown          = GetIniStringRawA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
+   string s8Starts               = GetIniStringRawA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
+   string s8Stops                = GetIniStringRawA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
+   string s8GridBase             = GetIniStringRawA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
+   string s8MissedLevels         = GetIniStringRawA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
+   string s8PendingOrders        = GetIniStringRawA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
+   string s8OpenPositions        = GetIniStringRawA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
+   string s8ClosedOrders         = GetIniStringRawA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
+
+   string s9SessionbreakWaiting  = GetIniStringRawA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
+   string s9StartEquity          = GetIniStringRawA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
+   string s9MaxProfit            = GetIniStringRawA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
+   string s9MaxDrawdown          = GetIniStringRawA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
+   string s9Starts               = GetIniStringRawA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
+   string s9Stops                = GetIniStringRawA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
+   string s9GridBase             = GetIniStringRawA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
+   string s9MissedLevels         = GetIniStringRawA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
+   string s9PendingOrders        = GetIniStringRawA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
+   string s9OpenPositions        = GetIniStringRawA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
+   string s9ClosedOrders         = GetIniStringRawA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
+
+   string s10SessionbreakWaiting = GetIniStringRawA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
+   string s10StartEquity         = GetIniStringRawA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
+   string s10MaxProfit           = GetIniStringRawA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
+   string s10MaxDrawdown         = GetIniStringRawA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
+   string s10Starts              = GetIniStringRawA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
+   string s10Stops               = GetIniStringRawA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
+   string s10GridBase            = GetIniStringRawA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
+   string s10MissedLevels        = GetIniStringRawA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
+   string s10PendingOrders       = GetIniStringRawA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
+   string s10OpenPositions       = GetIniStringRawA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
+   string s10ClosedOrders        = GetIniStringRawA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
+
+   string s11SessionbreakWaiting = GetIniStringRawA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
+   string s11StartEquity         = GetIniStringRawA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
+   string s11MaxProfit           = GetIniStringRawA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
+   string s11MaxDrawdown         = GetIniStringRawA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
+   string s11Starts              = GetIniStringRawA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
+   string s11Stops               = GetIniStringRawA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
+   string s11GridBase            = GetIniStringRawA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
+   string s11MissedLevels        = GetIniStringRawA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
+   string s11PendingOrders       = GetIniStringRawA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
+   string s11OpenPositions       = GetIniStringRawA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
+   string s11ClosedOrders        = GetIniStringRawA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
+
+   string s12SessionbreakWaiting = GetIniStringRawA(file, section, "rt.sessionbreak.waiting",  "");     // bool    rt.sessionbreak.waiting=1
+   string s12StartEquity         = GetIniStringRawA(file, section, "rt.sequence.startEquity",  "");     // double  rt.sequence.startEquity=7801.13
+   string s12MaxProfit           = GetIniStringRawA(file, section, "rt.sequence.maxProfit",    "");     // double  rt.sequence.maxProfit=200.13
+   string s12MaxDrawdown         = GetIniStringRawA(file, section, "rt.sequence.maxDrawdown",  "");     // double  rt.sequence.maxDrawdown=-127.80
+   string s12Starts              = GetIniStringRawA(file, section, "rt.sequence.starts",       "");     // mixed[] rt.sequence.starts=1|1328701713|1.32677|1000.00, 3|1329999999|1.33215|1200.00
+   string s12Stops               = GetIniStringRawA(file, section, "rt.sequence.stops",        "");     // mixed[] rt.sequence.stops= 2|1328701999|1.32734|1200.00, 0|0|0.00000|0.00
+   string s12GridBase            = GetIniStringRawA(file, section, "rt.gridbase",              "");     // mixed[] rt.gridbase= 4|1331710960|1.56743, 5|1331711010|1.56714
+   string s12MissedLevels        = GetIniStringRawA(file, section, "rt.sequence.missedLevels", "");     // int[]   rt.sequence.missedLevels=-6,-7,-8,-14
+   string s12PendingOrders       = GetIniStringRawA(file, section, "rt.ignorePendingOrders",   "");     // int[]   rt.ignorePendingOrders=66064890,66064891,66064892
+   string s12OpenPositions       = GetIniStringRawA(file, section, "rt.ignoreOpenPositions",   "");     // int[]   rt.ignoreOpenPositions=66064890,66064891,66064892
+   string s12ClosedOrders        = GetIniStringRawA(file, section, "rt.ignoreClosedPositions", "");     // int[]   rt.ignoreClosedPositions=66064890,66064891,66064892
 
 
-   if (!catch("ReadStatus(24)"))
-      SetLastError(ERR_CANCELLED_BY_USER);
+   OutputDebugStringA("ReadStatus(0.1)  leave");
+   last_error = ERR_CANCELLED_BY_USER;
    return(!last_error);
 
 
    // --- old version -------------------------------------------------------------------------------------------------------
    // Runtime-Settings auslesen, validieren und übernehmen
-   for (int i=0; i < size; i++) {
-      ReadStatus.Runtime("rt.{key}", "rt.{value}");
-   }
+   ReadStatus.Runtime("rt.{key}", "rt.{value}");
 
    // Abhängigkeiten validieren
    if (IntInArray(orders.ticket, 0))                                       return(_false(catch("ReadStatus(19)  one or more order entries missing in file \""+ file +"\"", ERR_RUNTIME_ERROR)));
@@ -3778,6 +3844,20 @@ int ReadStatusSections(string file, string &names[]) {
    if (!size)               return(!catch("ReadStatusSections(1)  invalid status file "+ DoubleQuoteStr(file) +" (no \"SnowRoller\" sections found)", ERR_INVALID_FILE_FORMAT));
 
    return(size);
+}
+
+
+/**
+ * Return all order keys found in the given cycle section of the specified status file, sorted in ascending order.
+ *
+ * @param  _In_  string file    - status filename
+ * @param  _In_  string section - sequence cycle section
+ * @param  _Out_ string names[] - array receiving the found order keys
+ *
+ * @return int - number of found order keys or -1 (EMPTY) in case of errors
+ */
+int ReadOrderKeys(string file, string section, string &keys[]) {
+   return(NULL);
 }
 
 

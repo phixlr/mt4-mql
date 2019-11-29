@@ -102,6 +102,7 @@
 
    // configuration
    int      GetIniSections(string fileName, string &names[]);
+   string   GetIniStringRaw(string fileName, string section, string key, string defaultValue = "");
 
 
    // Date/Time

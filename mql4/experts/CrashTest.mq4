@@ -3402,8 +3402,10 @@ bool ReadStatus() {
    string s12ClosedOrders        = GetString(file);
 
 
-   OutputDebugStringA("ReadStatus(0.1)  leave");
-   return(true);
+   OutputDebugStringA("ReadStatus(0.1)  leave");   // Unreachable code after a static return statement is is removed. If the function stack and
+   if (GetTickCount() > 1000) {                    // the removedcode both exceed a specific size the function return pointer is invalid.
+      return(true);                                //
+   }                                               // Current workaround: Turn static return statements into dynamic ones.
 
    ReadStatus.Runtime();
    if (IntInArray(orders, 0)) return(false);

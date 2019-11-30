@@ -1,7 +1,7 @@
 /**
  * Global constants and variables
  */
-#property stacksize 262144                                  // According to the docs the default stacksize is now at least 256kb (https://docs.mql4.com/basis/variables/local),
+//#property stacksize 262144                                  // According to the docs the default stacksize is now at least 256kb (https://docs.mql4.com/basis/variables/local),
                                                             // in older builds it used to be much smaller.
 #include <mqldefines.mqh>
 #include <win32defines.mqh>

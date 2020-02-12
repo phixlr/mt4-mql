@@ -1,5 +1,7 @@
 /**
- * Sisyphus - a reverse SnowRoller (work in progress)
+ * Sisyphus - a reverse SnowRoller
+ *
+ * Work in progress
  */
 #include <stddefines.mqh>
 #include <app/Sisyphus/defines.mqh>

@@ -1,5 +1,9 @@
 /**
  * RosaTrend - a simplistic trend follower
+ *
+ *
+ * Note: This strategy is in early development stage and in no way ready for trading. Once it is merged to "master" it will
+ *       be ready for testing.
  */
 #include <stddefines.mqh>
 int   __INIT_FLAGS__[] = {INIT_TIMEZONE, INIT_PIPVALUE, INIT_CUSTOMLOG};

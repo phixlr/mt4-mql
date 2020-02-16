@@ -1,7 +1,9 @@
 /**
  * Sisyphus - a reverse SnowRoller
  *
- * Work in progress
+ *
+ * Note: This strategy is in early development stage and in no way ready for trading. Once it is merged to "master" it will
+ *       be ready for testing.
  */
 #include <stddefines.mqh>
 #include <app/Sisyphus/defines.mqh>

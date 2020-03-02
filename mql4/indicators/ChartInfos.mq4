@@ -1439,28 +1439,28 @@ bool UpdatePositions() {
    if (!ArraySize(col.xShifts) || positions.absoluteProfits!=lastAbsoluteProfits) {
       if (positions.absoluteProfits) {
          // Spalten:         Type: Lots   BE:  BePrice   Profit: Amount Percent   Comment
-         // col.xShifts[] = {20,   59,    135, 160,      226,    258,   345,      406};
+         // col.xShifts[] = {20,   66,    142, 167,      233,    265,   352,      413};
          ArrayResize(col.xShifts, 8);
          col.xShifts[0] =  20;
-         col.xShifts[1] =  59;
-         col.xShifts[2] = 135;
-         col.xShifts[3] = 160;
-         col.xShifts[4] = 226;
-         col.xShifts[5] = 258;
-         col.xShifts[6] = 345;
-         col.xShifts[7] = 406;
+         col.xShifts[1] =  66;
+         col.xShifts[2] = 142;
+         col.xShifts[3] = 167;
+         col.xShifts[4] = 233;
+         col.xShifts[5] = 265;
+         col.xShifts[6] = 352;
+         col.xShifts[7] = 413;
       }
       else {
          // Spalten:         Type: Lots   BE:  BePrice   Profit: Percent   Comment
-         // col.xShifts[] = {20,   59,    135, 160,      226,    258,      319};
+         // col.xShifts[] = {20,   66,    142, 167,      233,    265,      326};
          ArrayResize(col.xShifts, 7);
          col.xShifts[0] =  20;
-         col.xShifts[1] =  59;
-         col.xShifts[2] = 135;
-         col.xShifts[3] = 160;
-         col.xShifts[4] = 226;
-         col.xShifts[5] = 258;
-         col.xShifts[6] = 319;
+         col.xShifts[1] =  66;
+         col.xShifts[2] = 142;
+         col.xShifts[3] = 167;
+         col.xShifts[4] = 233;
+         col.xShifts[5] = 265;
+         col.xShifts[6] = 326;
       }
       cols                = ArraySize(col.xShifts);
       percentCol          = cols - 2;
@@ -4698,9 +4698,9 @@ bool onOrderFail(int tickets[]) {
       int    pipDigits   = digits & (~1);
       string priceFormat = StringConcatenate(".", pipDigits, ifString(digits==pipDigits, "", "'"));
       string price       = NumberToStr(OrderOpenPrice(), priceFormat);
-      string message     = "Order failed: #"+ tickets[i] +" "+ type +" "+ lots +" "+ GetStandardSymbol(OrderSymbol()) +" at "+ price + NL +"with error: \""+ OrderComment() +"\""+ NL +"("+ TimeToStr(TimeLocalEx("onOrderFail(2)"), TIME_MINUTES|TIME_SECONDS) +", "+ tradeAccount.alias +")";
+      string message     = "Order failed: #"+ tickets[i] +" "+ type +" "+ lots +" "+ GetStandardSymbol(OrderSymbol()) +" at "+ price + NL +"with error: \""+ OrderComment() +"\""+ NL +"("+ TimeToStr(GetLocalTime(), TIME_MINUTES|TIME_SECONDS) +", "+ tradeAccount.alias +")";
 
-      if (__LOG()) log("onOrderFail(3)  "+ message);
+      if (__LOG()) log("onOrderFail(2)  "+ message);
 
       // Signale für jede Order einzeln verschicken
       if (signal.mail) error |= !SendEmail(signal.mail.sender, signal.mail.receiver, message, message);
@@ -4737,9 +4737,9 @@ bool onPositionOpen(int tickets[]) {
       int    pipDigits   = digits & (~1);
       string priceFormat = StringConcatenate(".", pipDigits, ifString(digits==pipDigits, "", "'"));
       string price       = NumberToStr(OrderOpenPrice(), priceFormat);
-      string message     = "Position opened: #"+ tickets[i] +" "+ type +" "+ lots +" "+ GetStandardSymbol(OrderSymbol()) +" at "+ price + NL +"("+ TimeToStr(TimeLocalEx("onPositionOpen(2)"), TIME_MINUTES|TIME_SECONDS) +", "+ tradeAccount.alias +")";
+      string message     = "Position opened: #"+ tickets[i] +" "+ type +" "+ lots +" "+ GetStandardSymbol(OrderSymbol()) +" at "+ price + NL +"("+ TimeToStr(GetLocalTime(), TIME_MINUTES|TIME_SECONDS) +", "+ tradeAccount.alias +")";
 
-      if (__LOG()) log("onPositionOpen(3)  "+ message);
+      if (__LOG()) log("onPositionOpen(2)  "+ message);
 
       // Signale für jede Position einzeln verschicken
       if (signal.mail) error |= !SendEmail(signal.mail.sender, signal.mail.receiver, message, message);
@@ -4781,9 +4781,9 @@ bool onPositionClose(int tickets[][]) {
       string priceFormat = StringConcatenate(".", pipDigits, ifString(digits==pipDigits, "", "'"));
       string openPrice   = NumberToStr(OrderOpenPrice(), priceFormat);
       string closePrice  = NumberToStr(OrderClosePrice(), priceFormat);
-      string message     = "Position closed: #"+ ticket +" "+ type +" "+ lots +" "+ GetStandardSymbol(OrderSymbol()) +" open="+ openPrice +" close="+ closePrice + closeTypeDescr[closeType] + NL +"("+ TimeToStr(TimeLocalEx("onPositionClose(2)"), TIME_MINUTES|TIME_SECONDS) +", "+ tradeAccount.alias +")";
+      string message     = "Position closed: #"+ ticket +" "+ type +" "+ lots +" "+ GetStandardSymbol(OrderSymbol()) +" open="+ openPrice +" close="+ closePrice + closeTypeDescr[closeType] + NL +"("+ TimeToStr(GetLocalTime(), TIME_MINUTES|TIME_SECONDS) +", "+ tradeAccount.alias +")";
 
-      if (__LOG()) log("onPositionClose(3)  "+ message);
+      if (__LOG()) log("onPositionClose(2)  "+ message);
 
       // Signale für jede Position einzeln verschicken
       if (signal.mail) error |= !SendEmail(signal.mail.sender, signal.mail.receiver, message, message);

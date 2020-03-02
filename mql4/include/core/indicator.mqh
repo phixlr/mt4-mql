@@ -57,7 +57,7 @@ int init() {
 
 
    // (2) finish initialization
-   if (!init.UpdateGlobalVars()) if (CheckErrors("init(2)")) return(last_error);
+   if (!init.GlobalVars()) if (CheckErrors("init(2)")) return(last_error);
 
 
    // (3) execute custom init tasks
@@ -171,19 +171,10 @@ int init() {
  *
  * Note: The memory location of an indicator's EXECUTION_CONTEXT changes with every init cycle.
  */
-bool init.UpdateGlobalVars() {
-   __lpSuperContext = __ExecutionContext[EC.superContext];
-   if (!__lpSuperContext) {                                    // with a super-context this indicator's context is already up-to-date
-      ec_SetLogging(__ExecutionContext, IsLogging());          // TODO: move to Expander
-   }
-
-   N_INF = MathLog(0);
-   P_INF = -N_INF;
-   NaN   =  N_INF - N_INF;
-
+bool init.GlobalVars() {
    //
    // Terminal bug 1: On opening of a new chart window and on account change the global constants Digits and Point are in
-   //                 init() always set to 5 and 0.00001, irrespective of the actual symbol's properties. Only a reload of
+   //                 init() always set to 5 and 0.00001, irrespective of the actual symbol. Only a reload of
    //                 the chart template fixes the wrong values.
    //
    // Terminal bug 2: Since terminal version ??? bug #1 can't be fixed anymore by reloading the chart template. The issue is
@@ -205,13 +196,23 @@ bool init.UpdateGlobalVars() {
    Tick           = __ExecutionContext[EC.ticks       ];
    Tick.Time      = __ExecutionContext[EC.lastTickTime];
 
-   __LOG_CUSTOM     = ec_CustomLogging(__ExecutionContext);    // supported by experts only
-   __LOG_WARN.mail  = false;                                   // ...
-   __LOG_WARN.sms   = false;                                   // ...
-   __LOG_ERROR.mail = false;                                   // ...
-   __LOG_ERROR.sms  = false;                                   // ...
+   __lpSuperContext = __ExecutionContext[EC.superContext];
+   if (!__lpSuperContext) {                                       // with a supercontext this context is already up-to-date
+      ec_SetLogEnabled          (__ExecutionContext, init.IsLogEnabled());
+      ec_SetLogToDebugEnabled   (__ExecutionContext, GetConfigBool("Logging", "LogToDebug", true));
+      ec_SetLogToTerminalEnabled(__ExecutionContext, true);
+   }
 
-   return(!catch("init.UpdateGlobalVars(1)"));
+   __LOG_WARN.mail  = false;
+   __LOG_WARN.sms   = false;
+   __LOG_ERROR.mail = false;
+   __LOG_ERROR.sms  = false;
+
+   N_INF = MathLog(0);
+   P_INF = -N_INF;
+   NaN   =  N_INF - N_INF;
+
+   return(!catch("init.GlobalVars(1)"));
 }
 
 
@@ -575,8 +576,9 @@ bool CheckErrors(string location, int setError = NULL) {
 
    return(__STATUS_OFF);
 
-   // dummy calls to suppress compiler warnings
+   // suppress compiler warnings
    __DummyCalls();
+   SetCustomLog(NULL);
 }
 
 
@@ -608,6 +610,18 @@ bool EventListener_ChartCommand(string &commands[]) {
 }
 
 
+/**
+ * Configure the use of a custom logfile.
+ *
+ * @param  string filename - name of a custom logfile or an empty string to disable custom logging
+ *
+ * @return bool - success status
+ */
+bool SetCustomLog(string filename) {
+   return(SetCustomLogA(__ExecutionContext, filename));
+}
+
+
 // --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -616,10 +630,12 @@ bool EventListener_ChartCommand(string &commands[]) {
    bool   ReleaseLock(string mutexName);
 
 #import "rsfExpander.dll"
-   string ec_CustomLogFile         (/*EXECUTION_CONTEXT*/int ec[]);
-   int    ec_SetDllError           (/*EXECUTION_CONTEXT*/int ec[], int error       );
-   bool   ec_SetLogging            (/*EXECUTION_CONTEXT*/int ec[], int status      );
-   int    ec_SetProgramCoreFunction(/*EXECUTION_CONTEXT*/int ec[], int coreFunction);
+   int    ec_SetDllError            (int ec[], int error   );
+   bool   ec_SetLogEnabled          (int ec[], int status  );
+   bool   ec_SetLogToDebugEnabled   (int ec[], int status  );
+   bool   ec_SetLogToTerminalEnabled(int ec[], int status  );
+   int    ec_SetProgramCoreFunction (int ec[], int function);
+   bool   SetCustomLogA             (int ec[], string file);
 
    bool   ShiftIndicatorBuffer(double buffer[], int bufferSize, int bars, double emptyValue);
 

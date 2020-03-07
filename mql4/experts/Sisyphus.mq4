@@ -242,3 +242,132 @@ int onTick() {
 
    return(last_error);
 }
+
+
+/**
+ * Start a new trade sequence.
+ *
+ * @param  int signal - signal which triggered a start condition or NULL if no condition was triggered (manual start)
+ *
+ * @return bool - success status
+ */
+bool StartSequence(int signal) {
+   if (IsLastError())                     return(false);
+   if (sequence.status != STATUS_WAITING) return(!catch("StartSequence(1)  "+ sequence.longName +" cannot start "+ StatusDescription(sequence.status) +" sequence", ERR_ILLEGAL_STATE));
+
+   return(!catch("StartSequence(2)", ERR_NOT_IMPLEMENTED));
+}
+
+
+/**
+ * Close all open positions and delete pending orders. Stop the sequence and configure auto-resuming: If auto-resuming for a
+ * trend condition is enabled the sequence is automatically resumed the next time the trend condition is fulfilled. If the
+ * sequence is stopped due to a session break it is automatically resumed after the session break ends.
+ *
+ * @param  int signal - signal which triggered the stop condition or NULL if no condition was triggered (explicit stop)
+ *
+ * @return bool - success status
+ */
+bool StopSequence(int signal) {
+   if (IsLastError())                                                          return(false);
+   if (sequence.status!=STATUS_WAITING && sequence.status!=STATUS_PROGRESSING) return(!catch("StopSequence(1)  "+ sequence.longName +" cannot stop "+ StatusDescription(sequence.status) +" sequence", ERR_ILLEGAL_STATE));
+
+   return(!catch("StopSequence(2)", ERR_NOT_IMPLEMENTED));
+}
+
+
+/**
+ * Resume a waiting or stopped trade sequence.
+ *
+ * @param  int signal - signal which triggered a resume condition or NULL if no condition was triggered (manual resume)
+ *
+ * @return bool - success status
+ */
+bool ResumeSequence(int signal) {
+   if (IsLastError())                                                      return(false);
+   if (sequence.status!=STATUS_WAITING && sequence.status!=STATUS_STOPPED) return(!catch("ResumeSequence(1)  "+ sequence.longName +" cannot resume "+ StatusDescription(sequence.status) +" sequence", ERR_ILLEGAL_STATE));
+
+   return(!catch("ResumeSequence(2)", ERR_NOT_IMPLEMENTED));
+}
+
+
+/**
+ * Update internal order and PL status according to current market data.
+ *
+ * @param  _InOut_ bool gridChanged - whether the current gridbase or the gridlevel changed
+ *
+ * @return bool - success status
+ */
+bool UpdateStatus(bool &gridChanged) {
+   gridChanged = gridChanged!=0;
+   if (IsLastError())                         return(false);
+   if (sequence.status != STATUS_PROGRESSING) return(!catch("UpdateStatus(1)  "+ sequence.longName +" cannot update order status of "+ StatusDescription(sequence.status) +" sequence", ERR_ILLEGAL_STATE));
+
+   return(!catch("UpdateStatus(2)", ERR_NOT_IMPLEMENTED));
+}
+
+
+/**
+ * Whether a start or resume condition is satisfied for a waiting sequence. Price and time conditions are "AND" combined.
+ *
+ * @param  _Out_ int signal - variable receiving the signal identifier of the fulfilled start condition
+ *
+ * @return bool
+ */
+bool IsStartSignal(int &signal) {
+   signal = NULL;
+   if (last_error || sequence.status!=STATUS_WAITING) return(false);
+
+   return(!catch("IsStartSignal(1)", ERR_NOT_IMPLEMENTED));
+}
+
+
+/**
+ * Whether a stop condition is satisfied for a waiting or a progressing sequence. All stop conditions are "OR" combined.
+ *
+ * @param  _Out_ int signal - variable receiving the signal identifier of the fulfilled stop condition
+ *
+ * @return bool
+ */
+bool IsStopSignal(int &signal) {
+   signal = NULL;
+   if (last_error || (sequence.status!=STATUS_WAITING && sequence.status!=STATUS_PROGRESSING)) return(false);
+   if (!ArraySize(sequence.start.event))                                                       return(false);
+
+   return(!catch("IsStopSignal(1)", ERR_NOT_IMPLEMENTED));
+}
+
+
+/**
+ * Trail existing, open missing and delete obsolete pending orders. If open positions are missing, create pending orders for
+ * those positions and add them to the list of missed order levels.
+ *
+ * @return bool - success status
+ */
+bool UpdatePendingOrders() {
+   if (IsLastError())                         return(false);
+   if (sequence.status != STATUS_PROGRESSING) return(!catch("UpdatePendingOrders(1)  "+ sequence.longName +" cannot update orders of "+ StatusDescription(sequence.status) +" sequence", ERR_ILLEGAL_STATE));
+
+   return(!catch("UpdatePendingOrders(2)", ERR_NOT_IMPLEMENTED));
+}
+
+
+/**
+ * Return the number of positions of the sequence closed by a stoploss.
+ *
+ * @return int
+ */
+int CountStoppedOutPositions() {
+   return(!catch("CountStoppedOutPositions(1)", ERR_NOT_IMPLEMENTED));
+}
+
+
+/**
+ * Return the number of positions of the sequence closed by StopSequence().
+ *
+ * @return int
+ */
+int CountClosedPositions() {
+   return(!catch("CountClosedPositions(1)", ERR_NOT_IMPLEMENTED));
+}
+

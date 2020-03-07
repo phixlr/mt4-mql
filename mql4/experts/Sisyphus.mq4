@@ -5,7 +5,7 @@
  * Note: This strategy is a case study and not yet ready for testing or trading.
  */
 #include <stddefines.mqh>
-#include <app/Sisyphus/defines.mqh>
+#include <app/sisn.defines.mqh>
 int   __INIT_FLAGS__[] = {INIT_TIMEZONE, INIT_PIPVALUE};
 int __DEINIT_FLAGS__[];
 
@@ -28,6 +28,10 @@ extern datetime Sessionbreak.EndTime   = D'1970.01.01 01:02:10';        // in FX
 #include <core/expert.mqh>
 #include <stdfunctions.mqh>
 #include <rsfLibs.mqh>
+
+
+#define STRATEGY_ID  104                           // unique strategy id (between 101-1023)
+
 
 // --- sequence data -----------------------
 int      sequence.id;

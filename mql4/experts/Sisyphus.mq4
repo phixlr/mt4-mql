@@ -30,7 +30,7 @@ extern datetime Sessionbreak.EndTime   = D'1970.01.01 01:02:10';        // in FX
 #include <rsfLibs.mqh>
 
 
-#define STRATEGY_ID  104                           // unique strategy id (between 101-1023)
+#define STRATEGY_ID  104                           // unique strategy identifier
 
 
 // --- sequence data -----------------------
@@ -199,6 +199,7 @@ bool     tester.showBreakeven       = false;       // whether to show breakeven 
 
 #include <app/snowroller/sisyphus-1-init.mqh>
 #include <app/snowroller/sisyphus-2-deinit.mqh>
+#include <app/snowroller/functions.mqh>
 
 
 /**
@@ -208,25 +209,4 @@ bool     tester.showBreakeven       = false;       // whether to show breakeven 
  */
 int onTick() {
    return(last_error);
-}
-
-
-/**
- * Return a string representation of the input parameters (for logging purposes).
- *
- * @return string
- */
-string InputsToStr() {
-   return(StringConcatenate("Sequence.ID=",            DoubleQuoteStr(Sequence.ID),                  ";", NL,
-                            "GridDirection=",          DoubleQuoteStr(GridDirection),                ";", NL,
-                            "GridSize=",               GridSize,                                     ";", NL,
-                            "UnitSize=",               DoubleQuoteStr(UnitSize),                     ";", NL,
-                            "StartConditions=",        DoubleQuoteStr(StartConditions),              ";", NL,
-                            "StopConditions=",         DoubleQuoteStr(StopConditions),               ";", NL,
-                            "AutoRestart=",            DoubleQuoteStr(AutoRestart),                  ";", NL,
-                            "StartLevel=",             StartLevel,                                   ";", NL,
-                            "ShowProfitInPercent=",    BoolToStr(ShowProfitInPercent),               ";", NL,
-                            "Sessionbreak.StartTime=", TimeToStr(Sessionbreak.StartTime, TIME_FULL), ";", NL,
-                            "Sessionbreak.EndTime=",   TimeToStr(Sessionbreak.EndTime, TIME_FULL),   ";")
-   );
 }

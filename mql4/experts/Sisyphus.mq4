@@ -2,7 +2,7 @@
  * Sisyphus - a reverse SnowRoller
  *
  *
- * Note: This strategy is in prototyping stage and not yet ready for testing or trading.
+ * Note: This strategy is a case study and not yet ready for testing or trading.
  */
 #include <stddefines.mqh>
 #include <app/Sisyphus/defines.mqh>

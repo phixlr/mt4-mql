@@ -199,8 +199,8 @@ bool     tester.reduceStatusWrites  = true;        // whether to minimize status
 bool     tester.showBreakeven       = false;       // whether to show breakeven markers in tester
 
 
-#include <app/snowroller/sisyphus-1-init.mqh>
-#include <app/snowroller/sisyphus-2-deinit.mqh>
+#include <app/snowroller/1-init-sisyphus.mqh>
+#include <app/snowroller/2-deinit.mqh>
 #include <app/snowroller/functions.mqh>
 
 
@@ -243,6 +243,20 @@ int onTick() {
    if (EA.RecordEquity) tester.equityValue = sequence.startEquity + sequence.totalPL;
 
    return(last_error);
+}
+
+
+/**
+ * Display the current runtime status.
+ *
+ * @param  int error [optional] - error to display (default: none)
+ *
+ * @return int - the same error or the current error status if no error was passed
+ */
+int ShowStatus(int error = NO_ERROR) {
+   if (!__CHART()) return(error);
+
+   return(_int(error, catch("ShowStatus(1)", ERR_NOT_IMPLEMENTED)));
 }
 
 

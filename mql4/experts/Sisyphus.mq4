@@ -2,7 +2,7 @@
  * Sisyphus - a reverse SnowRoller
  *
  *
- * Note: Case study, not yet ready for testing or trading.
+ * Note: Work in progress, not yet ready for testing or trading.
  */
 #include <stddefines.mqh>
 #include <app/snowroller/defines.mqh>
@@ -199,7 +199,7 @@ bool     tester.reduceStatusWrites  = true;        // whether to minimize status
 bool     tester.showBreakeven       = false;       // whether to show breakeven markers in tester
 
 
-#include <app/snowroller/1-init-sisyphus.mqh>
+#include <app/snowroller/1-init.mqh>
 #include <app/snowroller/2-deinit.mqh>
 #include <app/snowroller/functions.mqh>
 

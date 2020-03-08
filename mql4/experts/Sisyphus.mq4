@@ -28,6 +28,8 @@ extern datetime Sessionbreak.EndTime   = D'1970.01.01 01:02:10';        // in FX
 #include <core/expert.mqh>
 #include <stdfunctions.mqh>
 #include <rsfLibs.mqh>
+#include <functions/JoinInts.mqh>
+#include <functions/JoinStrings.mqh>
 
 
 #define STRATEGY_ID  104                           // unique strategy identifier
@@ -247,20 +249,6 @@ int onTick() {
 
 
 /**
- * Display the current runtime status.
- *
- * @param  int error [optional] - error to display (default: none)
- *
- * @return int - the same error or the current error status if no error was passed
- */
-int ShowStatus(int error = NO_ERROR) {
-   if (!__CHART()) return(error);
-
-   return(_int(error, catch("ShowStatus(1)", ERR_NOT_IMPLEMENTED)));
-}
-
-
-/**
  * Start a new trade sequence.
  *
  * @param  int signal - signal which triggered a start condition or NULL if no condition was triggered (manual start)
@@ -324,37 +312,6 @@ bool UpdateStatus(bool &gridChanged) {
 
 
 /**
- * Whether a start or resume condition is satisfied for a waiting sequence. Price and time conditions are "AND" combined.
- *
- * @param  _Out_ int signal - variable receiving the signal identifier of the fulfilled start condition
- *
- * @return bool
- */
-bool IsStartSignal(int &signal) {
-   signal = NULL;
-   if (last_error || sequence.status!=STATUS_WAITING) return(false);
-
-   return(!catch("IsStartSignal(1)", ERR_NOT_IMPLEMENTED));
-}
-
-
-/**
- * Whether a stop condition is satisfied for a waiting or a progressing sequence. All stop conditions are "OR" combined.
- *
- * @param  _Out_ int signal - variable receiving the signal identifier of the fulfilled stop condition
- *
- * @return bool
- */
-bool IsStopSignal(int &signal) {
-   signal = NULL;
-   if (last_error || (sequence.status!=STATUS_WAITING && sequence.status!=STATUS_PROGRESSING)) return(false);
-   if (!ArraySize(sequence.start.event))                                                       return(false);
-
-   return(!catch("IsStopSignal(1)", ERR_NOT_IMPLEMENTED));
-}
-
-
-/**
  * Trail existing, open missing and delete obsolete pending orders. If open positions are missing, create pending orders for
  * those positions and add them to the list of missed order levels.
  *
@@ -387,3 +344,89 @@ int CountClosedPositions() {
    return(!catch("CountClosedPositions(1)", ERR_NOT_IMPLEMENTED));
 }
 
+
+/**
+ * Whether a start or resume condition is satisfied for a waiting sequence. Price and time conditions are "AND" combined.
+ *
+ * @param  _Out_ int signal - variable receiving the signal identifier of the fulfilled start condition
+ *
+ * @return bool
+ */
+bool IsStartSignal(int &signal) {
+   signal = NULL;
+   if (last_error || sequence.status!=STATUS_WAITING) return(false);
+
+   return(!catch("IsStartSignal(1)", ERR_NOT_IMPLEMENTED));
+}
+
+
+/**
+ * Whether a stop condition is satisfied for a waiting or a progressing sequence. All stop conditions are "OR" combined.
+ *
+ * @param  _Out_ int signal - variable receiving the signal identifier of the fulfilled stop condition
+ *
+ * @return bool
+ */
+bool IsStopSignal(int &signal) {
+   signal = NULL;
+   if (last_error || (sequence.status!=STATUS_WAITING && sequence.status!=STATUS_PROGRESSING)) return(false);
+   if (!ArraySize(sequence.start.event))                                                       return(false);
+
+   return(!catch("IsStopSignal(1)", ERR_NOT_IMPLEMENTED));
+}
+
+
+/**
+ * Restore the internal state of the EA from the current sequence's status file.
+ *
+ * @param  bool interactive - whether input parameters have been entered through the input dialog
+ *
+ * @return bool - success status
+ */
+bool RestoreSequence(bool interactive) {
+   return(!catch("RestoreSequence(1)", ERR_NOT_IMPLEMENTED));
+}
+
+
+/**
+ * Write the current sequence status to a file. The sequence can be reloaded from the file.
+ *
+ * @return bool - success status
+ */
+bool SaveStatus() {
+   if (IsLastError())                             return(false);
+   if (!sequence.id)                              return(!catch("SaveStatus(1)  "+ sequence.longName +" illegal value of sequence.id = "+ sequence.id, ERR_ILLEGAL_STATE));
+   if (IsTestSequence()) /*&&*/ if (!IsTesting()) return(true);
+
+   return(!catch("SaveStatus(2)", ERR_NOT_IMPLEMENTED));
+}
+
+
+/**
+ * Display the current runtime status.
+ *
+ * @param  int error [optional] - error to display (default: none)
+ *
+ * @return int - the same error or the current error status if no error was passed
+ */
+int ShowStatus(int error = NO_ERROR) {
+   if (!__CHART()) return(error);
+
+   return(_int(error, catch("ShowStatus(1)", ERR_NOT_IMPLEMENTED)));
+}
+
+
+/**
+ * Validate new or changed input parameters. Parameters may have been entered through the input dialog, may have been read
+ * and applied from a status file or may have been deserialized and applied programmatically by the terminal (e.g. at restart).
+ *
+ * @param  bool interactive - whether the parameters have been entered through the input dialog
+ *
+ * @return bool - whether the input parameters are valid
+ */
+bool ValidateInputs(bool interactive) {
+   interactive = interactive!=0;
+   if (IsLastError()) return(false);
+
+   return(!catch("ValidateInputs(1)", ERR_NOT_IMPLEMENTED));
+}

@@ -411,21 +411,7 @@ bool SaveStatus() {
  */
 int ShowStatus(int error = NO_ERROR) {
    if (!__CHART()) return(error);
+
+   Comment(NL, NL, NL, NL, "ShowStatus()  not implemented");
    return(error);
-}
-
-
-/**
- * Validate new or changed input parameters. Parameters may have been entered through the input dialog, may have been read
- * and applied from a status file or may have been deserialized and applied programmatically by the terminal (e.g. at restart).
- *
- * @param  bool interactive - whether the parameters have been entered through the input dialog
- *
- * @return bool - whether the input parameters are valid
- */
-bool ValidateInputs(bool interactive) {
-   interactive = interactive!=0;
-   if (IsLastError()) return(false);
-
-   return(!catch("ValidateInputs(1)", ERR_NOT_IMPLEMENTED));
 }

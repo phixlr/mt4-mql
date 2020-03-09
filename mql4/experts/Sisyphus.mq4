@@ -411,8 +411,7 @@ bool SaveStatus() {
  */
 int ShowStatus(int error = NO_ERROR) {
    if (!__CHART()) return(error);
-
-   return(_int(error, catch("ShowStatus(1)", ERR_NOT_IMPLEMENTED)));
+   return(error);
 }
 
 

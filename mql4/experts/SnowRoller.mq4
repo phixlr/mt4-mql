@@ -17,7 +17,7 @@
  * If one of the AutoRestart options is enabled the EA continuously resets itself after takeprofit or stoploss are reached.
  * If AutoRestart is set to "Continue" the EA resets itself to the initial state and immediately continues trading at level 1.
  * If AutoRestart is set to "Reset" the EA resets itself to the initial state and waits for the next start condition to be
- * fulfilled. For both AutoRestart options start and stop parmeters must define a trend condition.
+ * fulfilled. For both AutoRestart options start and stop parameters must define a trend condition.
  *
  * The EA automatically interrupts and resumes trading during configurable session breaks, e.g. at Midnight or at weekends.
  * During session breaks all pending orders and open positions are closed. Session break configuration supports holidays.
@@ -33,7 +33,7 @@
  *  @link  https://www.forexfactory.com/showthread.php?t=239717  ["Trading the anti-grid with the Snowball EA"]
  *
  *
- * Risk warning: The market can range longer without reaching the profit target than a trading account can survive.
+ * Risk warning: The market can range longer without reaching the profit target than a trading account may be able to survive.
  */
 #include <stddefines.mqh>
 #include <app/snowroller/defines.mqh>
@@ -346,7 +346,7 @@ bool StartSequence(int signal) {
    sequence.status = STATUS_STARTING;
 
    double gridbase = GetGridbase();
-   if (__LOG()) log("StartSequence(2)  "+ sequence.name +" starting sequence at level "+ sequence.level + ifString(gridbase, " (predefined gridbase "+ NumberToStr(gridbase, PriceFormat) +")", ""));
+   if (__LOG()) log("StartSequence(2)  "+ sequence.name +" starting sequence at level "+ sequence.level +"..."+ ifString(gridbase, " (predefined gridbase "+ NumberToStr(gridbase, PriceFormat) +")", ""));
 
    // update start/stop conditions
    switch (signal) {
@@ -453,7 +453,7 @@ bool StopSequence(int signal) {
          return(!SetLastError(ERR_CANCELLED_BY_USER));
 
       sequence.status = STATUS_STOPPING;
-      if (__LOG()) log("StopSequence(3)  "+ sequence.longName +" stopping sequence");
+      if (__LOG()) log("StopSequence(3)  "+ sequence.longName +" stopping sequence...");
 
       // close open orders
       double stopPrice, slippage = 2;
@@ -1064,7 +1064,7 @@ bool UpdateStatus(bool &gridChanged) {
 
    int sizeOfTickets = ArraySize(orders.ticket);
    double floatingPL = 0;
-   bool levelIncreased = false;
+   bool entryStopTriggered = false;
 
    for (int level, i=sizeOfTickets-1; i >= 0; i--) {
       if (level == 1) break;                                                  // iterate backwards and limit tickets to inspect
@@ -1106,23 +1106,21 @@ bool UpdateStatus(bool &gridChanged) {
             if (__LOG()) log("UpdateStatus(5)  "+ sequence.longName +" "+ UpdateStatus.OrderFillMsg(i));
 
             if (IsStopOrderType(orders.pendingType[i])) {                     // an executed stop order
-               sequence.level    = orders.level[i]; SS.SequenceName();
-               sequence.maxLevel = Sign(sequence.level) * Max(Abs(sequence.level), Abs(sequence.maxLevel));
-               levelIncreased    = true;
-               gridChanged       = true;
+               sequence.level     = orders.level[i]; SS.SequenceName();
+               sequence.maxLevel  = Sign(sequence.level) * Max(Abs(sequence.level), Abs(sequence.maxLevel));
+               entryStopTriggered = true;
+               gridChanged        = true;
             }
             else {
                ArrayDropInt(sequence.missedLevels, orders.level[i]);          // an executed limit order => clear missed gridlevels
                SS.MissedLevels();
 
-               // @see  https://github.com/rosasurfer/mt4-mql/issues/10
                if (!isClosed) /*&&*/ if (IsStopLossTriggered(orders.type[i], orders.stopLoss[i])) {
                   string message = "UpdateStatus(6)  "+ sequence.longName +" SL of #"+ orders.ticket[i] +" reached but not executed, closing it manually...";
-                  if (!IsTesting()) warn(message);
+                  if (!IsTesting()) warn(message);                            // @see  https://github.com/rosasurfer/mt4-mql/issues/10
                   else if (__LOG()) log(message);
 
-                  int oe[];
-                  if (!OrderCloseEx(orders.ticket[i], NULL, NULL, CLR_NONE, NULL, oe)) return(false);
+                  if (!UpdateStatus.ExecuteStopLoss(orders.ticket[i])) return(false);
                   OrderSelect(orders.ticket[i], SELECT_BY_TICKET);            // refresh order context as it changed during the tick
                   isClosed             = true;
                   orders.closedBySL[i] = true;
@@ -1160,12 +1158,11 @@ bool UpdateStatus(bool &gridChanged) {
          Chart.MarkPositionClosed(i);
 
          if (orders.closedBySL[i]) {                                          // stopped out
-            if (__LOG()) log("UpdateStatus(8)  "+ sequence.longName +" "+ UpdateStatus.StopLossMsg(i));
-            if (levelIncreased) {
-               if (!IsTesting()) warn("UpdateStatus(9)  "+ sequence.longName +" multiple limits triggered: StopLoss and StopEntry");
+            if (__LOG()) {             log("UpdateStatus(8)  "+ sequence.longName +" "+ UpdateStatus.StopLossMsg(i));
+               if (entryStopTriggered) log("UpdateStatus(9)  "+ sequence.longName +" multiple limits triggered: StopEntry and StopLoss");
             }
-            else {
-               sequence.level -= Sign(orders.level[i]); SS.SequenceName();    // don't modify level when at the same time an entry stop was triggered
+            if (orders.level[i] == sequence.level) {
+               sequence.level -= Sign(orders.level[i]); SS.SequenceName();    // only decrease level when the triggered SL is of the current level (the last)
             }
             sequence.stops++;
             sequence.stopsPL = NormalizeDouble(sequence.stopsPL + orders.swap[i] + orders.commission[i] + orders.profit[i], 2); SS.Stops();
@@ -1757,7 +1754,7 @@ bool UpdatePendingOrders(bool saveStatus = false) {
       if (sizeOfTickets > 0) return(!catch("UpdatePendingOrders(6)  "+ sequence.longName +" order of level "+ level +" not found", ERR_ILLEGAL_STATE));
 
       level = levelStep;
-      while (true) {                                                       // without any orders we are in StartSequence() with a StartLevel != 0
+      while (true) {                                                       // with a level but no orders we are in StartSequence() with a predefined sequence.level != 0
          type = Grid.AddPendingOrder(level); if (!type) return(false);
          sizeOfTickets++;
          saveStatus = true;
@@ -1769,9 +1766,10 @@ bool UpdatePendingOrders(bool saveStatus = false) {
             idxCurrentLevel = sizeOfTickets-1;
          }
          else {                                                            // on a stop order decrease the sequence level
-            if (__LOG()) log("UpdatePendingOrders(7)  "+ sequence.longName +" StartLevel order is a stop order, decreasing sequence level...");
-            nextLevel      = level;
+            if (__LOG()) log("UpdatePendingOrders(7)  "+ sequence.longName +" opened order is a stop order, decreasing sequence level...");
             sequence.level = level - levelStep; SS.SequenceName();
+            nextLevel      = level;
+            level          = sequence.level;
          }
          level += levelStep;
          if (level == nextLevel)
@@ -1802,17 +1800,12 @@ bool UpdatePendingOrders(bool saveStatus = false) {
       sizeOfTickets++;
       saveStatus = true;
 
-      if (Abs(nextLevel) > 1) {
-         if (NE(orders.gridbase[idxCurrentLevel], orders.gridbase[sizeOfTickets-1])) {
-            return(!catch("UpdatePendingOrders(10)  "+ sequence.longName +" gridbase out of sync: currentLevel("+ orders.level[idxCurrentLevel] +")="+ NumberToStr(orders.gridbase[idxCurrentLevel], PriceFormat) +"  nextLevel("+ orders.level[sizeOfTickets-1] +")="+ NumberToStr(orders.gridbase[sizeOfTickets-1], PriceFormat), ERR_ILLEGAL_STATE));
-         }
-      }
-
       if (IsStopOrderType(type)) {                                         // a stop order was opened
          idxNextStop = sizeOfTickets-1;
       }
       else {                                                               // on a limit order the sequence level increased
-         if (__LOG()) log("UpdatePendingOrders(11)  "+ sequence.longName +" submitted order is a limit order, increasing sequence level...");
+         if (__LOG()) log("UpdatePendingOrders(10)  "+ sequence.longName +" submitted order is a limit order, increasing sequence level...");
+         idxCurrentLevel   = sizeOfTickets-1;
          sequence.level    = nextLevel; SS.SequenceName();
          sequence.maxLevel = Max(Abs(sequence.level), Abs(sequence.maxLevel)) * levelStep;
          nextLevel        += levelStep;
@@ -1828,7 +1821,7 @@ bool UpdatePendingOrders(bool saveStatus = false) {
       if (NE(gridbase, orders.gridbase[i], Digits)) {
          static int lastTrailed = 0;
 
-         if (IsTesting() || Tick.Time-lastTrailed >= limitOrderTrailing) { // wait <x> seconds between requests to avoid ERR_TOO_MANY_REQUESTS
+         if (/*IsTesting() ||*/Tick.Time-lastTrailed >= limitOrderTrailing) { // wait <x> seconds between requests to avoid ERR_TOO_MANY_REQUESTS
             type = Grid.TrailPendingOrder(i); if (!type) return(false);
             lastTrailed = Tick.Time;
             saveStatus  = true;
@@ -1851,7 +1844,7 @@ bool UpdatePendingOrders(bool saveStatus = false) {
 
    if (newLimitOrders > 0) {
       sMissedLevels = StrSubstr(sMissedLevels, 2); SS.MissedLevels();
-      if (__LOG()) log("UpdatePendingOrders(12)  "+ sequence.longName +" opened "+ newLimitOrders +" limit order"+ Pluralize(newLimitOrders) +" for missed level"+ Pluralize(newLimitOrders) +" "+ sMissedLevels +" (all missed levels: "+ JoinInts(sequence.missedLevels) +")");
+      if (__LOG()) log("UpdatePendingOrders(11)  "+ sequence.longName +" opened "+ newLimitOrders +" limit order"+ Pluralize(newLimitOrders) +" for missed level"+ Pluralize(newLimitOrders) +" "+ sMissedLevels +" (all missed levels: "+ JoinInts(sequence.missedLevels) +")");
    }
    UpdateProfitTargets();
    ShowProfitTargets();
@@ -1859,7 +1852,7 @@ bool UpdatePendingOrders(bool saveStatus = false) {
 
    if (saveStatus)
       if (!SaveStatus()) return(false);
-   return(!catch("UpdatePendingOrders(13)"));
+   return(!catch("UpdatePendingOrders(12)"));
 }
 
 
@@ -1985,7 +1978,7 @@ double ResetGridbase(datetime time=NULL, double value=NULL) {
  * @param  int level             - gridlevel of the order to open: -n...1 | 1...+n
  * @param  int offset [optional] - order array position (index) to add the new order (default: append to the end)
  *
- * @return int - order type of the opened order (stop or limit order) or NULL in case of errors
+ * @return int - order type of the opened order (stop or limit) or NULL in case of errors
  */
 int Grid.AddPendingOrder(int level, int offset=-1) {
    if (IsLastError())                                                           return(NULL);
@@ -2121,12 +2114,12 @@ bool Grid.AddPosition(int level) {
 
 
 /**
- * Trail pending open price and stoploss of the specified pending stop order. If the new open price is too close to the market
- * the stop order may be replaced by a limit order.
+ * Trail pending open price and stoploss of the specified stop order. If the new open price is too close to the market the
+ * stop order may be replaced by a limit order.
  *
  * @param  int i - pending order index
  *
- * @return int - order type of the resulting pending order or NULL in case of errors
+ * @return int - order type of the resulting order (stop or limit) or NULL in case of errors
  */
 int Grid.TrailPendingOrder(int i) {
    if (IsLastError())                         return(NULL);
@@ -2156,18 +2149,23 @@ int Grid.TrailPendingOrder(int i) {
 
    if (IsError(error)) {
       if (oe.Error(oe) != ERR_INVALID_STOP) return(NULL);
-      if (error == -1) {                                 // market violated: delete stop order and open a limit order instead
+      if (error == -1) {                                    // market violated: delete stop order and open a limit order instead
          error = Grid.DeleteOrder(i);
          if (!error) return(Grid.AddPendingOrder(level));
 
-         if (error == -1) {                              // the stop order was already executed
-            pendingTime  = prevPendingTime;              // restore the original values
-            pendingPrice = prevPendingPrice;
-            stopLoss     = prevStoploss;                 // TODO: modify StopLoss of the now open position
+         if (error == -1) {                                 // deletion failed, the stop order was already executed
             if (__LOG()) log("Grid.TrailPendingOrder(6)  "+ sequence.longName +" pending #"+ orders.ticket[i] +" was already executed");
-            return(!catch("Grid.TrailPendingOrder(7)  "+ sequence.longName +" unimplemented feature", ERR_NOT_IMPLEMENTED));
+            pendingTime  = prevPendingTime;                 // restore the original values
+            pendingPrice = prevPendingPrice;
+
+            error = ModifyStopLoss(i, gridbase, stopLoss);  // modify stoploss of the now open position
+            if (IsError(error)) {
+               if (error != -1) return(NULL);               // another error
+               warn("Grid.TrailPendingOrder(7)  "+ sequence.longName +" pending #"+ orders.ticket[i] +" entry limit and SL were already executed");
+               stopLoss = prevStoploss;
+            }
          }
-         return(NULL);                                   // covers network errors
+         else return(NULL);                                 // another error
       }
       else if (error == -2) {
          return(!catch("Grid.TrailPendingOrder(8)  "+ sequence.longName +" unsupported bucketshop account (stop distance is not zero)", oe.Error(oe)));
@@ -2175,7 +2173,7 @@ int Grid.TrailPendingOrder(int i) {
       else return(!catch("Grid.TrailPendingOrder(9)  "+ sequence.longName +" unknown ModifyStopOrder() return value "+ error, oe.Error(oe)));
    }
 
-   // update changed data (ignore current ticket state which may be different)
+   // update changed data (ignore current ticket status which may be different)
    orders.gridbase    [i] = gridbase;
    orders.pendingTime [i] = pendingTime;
    orders.pendingPrice[i] = pendingPrice;
@@ -2686,7 +2684,7 @@ int ModifyStopOrder(int ticket, double price, double stopLoss, int &oe[]) {
  * @param  double stoploss - new stoploss
  *
  * @return int - NULL on success or another value in case of errors, especially
- *                -1 if the position was already closed
+ *               -1 if the position was already closed
  */
 int ModifyStopLoss(int i, double gridbase, double stoploss) {
    if (IsLastError())                                                              return(last_error);
@@ -2719,6 +2717,42 @@ int ModifyStopLoss(int i, double gridbase, double stoploss) {
          return(SetLastNetworkError(oe));
    }
    return(SetLastError(error));
+}
+
+
+/**
+ * Manually execute a triggered StopLoss of an open position. Called only by UpdateStatus() to work around a terminal bug.
+ *
+ * @param  int ticket
+ *
+ * @return bool - whether the position was successfully closed was already closed by the broker
+ *
+ * @see    https://github.com/rosasurfer/mt4-mql/issues/10
+ */
+bool UpdateStatus.ExecuteStopLoss(int ticket) {
+   if (IsLastError())                         return(!last_error);
+   if (sequence.status != STATUS_PROGRESSING) return(!catch("UpdateStatus.ExecuteStopLoss(1)  "+ sequence.longName +" cannot execute stoploss of "+ StatusDescription(sequence.status) +" sequence", ERR_ILLEGAL_STATE));
+
+   int oe[], oeFlags  = F_ERR_INVALID_TRADE_PARAMETERS;     // accept the position already being closed
+             oeFlags |= F_ERR_NO_CONNECTION;                // custom handling of recoverable network errors
+             oeFlags |= F_ERR_TRADESERVER_GONE;
+             oeFlags |= F_ERR_TRADE_DISABLED;
+
+   bool success = OrderCloseEx(ticket, NULL, NULL, CLR_NONE, oeFlags, oe);
+   if (success)
+      return(_true(SetLastNetworkError(oe)));
+
+   int error = oe.Error(oe);
+   switch (error) {
+      case ERR_INVALID_TRADE_PARAMETERS:                    // position already closed
+         return(true);
+
+      case ERR_NO_CONNECTION:
+      case ERR_TRADESERVER_GONE:
+      case ERR_TRADE_DISABLED:
+         return(!SetLastNetworkError(oe));
+   }
+   return(!SetLastError(error));
 }
 
 
@@ -4849,7 +4883,7 @@ double GetTriEMA(int timeframe, string params, int iBuffer, int iBar) {
 
 
 /**
- * Store the last occurred network error and update the time of the next retry.
+ * Store the last occurred network error and update the time of the next trade request retry.
  *
  * @param  int oe[] - one or multiple order execution details (struct ORDER_EXECUTION)
  *

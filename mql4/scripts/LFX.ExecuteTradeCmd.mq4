@@ -126,7 +126,9 @@ bool GetTradeCommand(int &command, int &ticket1, int &ticket2, string &trigger) 
    if (!ArraySize(commands)) {
       bool stopReceiver = false;
       if (!ScriptRunner.GetParameters(commands, stopReceiver)) return(false);
-      //debug("GetTradeCommand(1)  got "+ ArraySize(commands) +" parameter"+ ifString(ArraySize(commands)==1, "", "s"));
+
+      //debug("GetTradeCommand(1)  got "+ ArraySize(commands) +" parameter"+ Pluralize(ArraySize(commands)));
+
       if (!ArraySize(commands)) return(false);                           // bei leerer Queue mit FALSE zurückkehren
    }
 
@@ -513,11 +515,11 @@ bool OpenLfxOrder.SendSMS(/*LFX_ORDER*/int lo[], int subPositions, string trigge
       int    counter  = StrToInteger(comment);
       string symbol.i = currency +"."+ counter;
       string message  = tradeAccount.alias +": "+ StrToLower(OrderTypeDescription(lo.Type(lo))) +" "+ DoubleToStr(lo.Units(lo), 1) +" "+ symbol.i;
-      if (lo.IsOpenError(lo))     message = message +" opening at "+ NumberToStr(lo.OpenPrice(lo), ".4'") +" failed ("+ ErrorToStr(error) +"), "+ subPositions +" subposition"+ ifString(subPositions==1, "", "s") +" opened";
+      if (lo.IsOpenError(lo))     message = message +" opening at "+ NumberToStr(lo.OpenPrice(lo), ".4'") +" failed ("+ ErrorToStr(error) +"), "+ subPositions +" subposition"+ Pluralize(subPositions) +" opened";
       else                        message = message +" position opened at "+ NumberToStr(lo.OpenPrice(lo), ".4'");
       if (StringLen(trigger) > 0) message = message +" ("+ trigger +")";
 
-      if (!SendSMS(__SMS.receiver, TimeToStr(TimeLocalEx("OpenLfxOrder.SendSMS(1)"), TIME_MINUTES) +" "+ message))
+      if (!SendSMS(__SMS.receiver, TimeToStr(GetLocalTime(), TIME_MINUTES) +" "+ message))
          return(false);
    }
    return(true);
@@ -716,7 +718,7 @@ bool CloseLfxOrder.SendSMS(/*LFX_ORDER*/int lo[], string comment, string trigger
       else                        message = message + " position closed at "+ NumberToStr(lo.ClosePrice(lo), ".4'");
       if (StringLen(trigger) > 0) message = message +" ("+ trigger +")";
 
-      if (!SendSMS(__SMS.receiver, TimeToStr(TimeLocalEx("CloseLfxOrder.SendSMS(1)"), TIME_MINUTES) +" "+ message))
+      if (!SendSMS(__SMS.receiver, TimeToStr(GetLocalTime(), TIME_MINUTES) +" "+ message))
          return(false);
    }
    return(true);

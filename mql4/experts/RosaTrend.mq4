@@ -1,12 +1,11 @@
 /**
- * RosaTrend - a simplistic trend follower
+ * RosaTrend - a simplistic trend following strategy
  *
  *
- * Note: This strategy is in early development stage and in no way ready for trading. Once it is merged to "master" it will
- *       be ready for testing.
+ * Note: Work in progress, not yet ready for testing or trading.
  */
 #include <stddefines.mqh>
-int   __INIT_FLAGS__[] = {INIT_TIMEZONE, INIT_PIPVALUE, INIT_CUSTOMLOG};
+int   __INIT_FLAGS__[] = {INIT_TIMEZONE, INIT_PIPVALUE};
 int __DEINIT_FLAGS__[];
 
 ////////////////////////////////////////////////////// Configuration ////////////////////////////////////////////////////////
@@ -14,7 +13,7 @@ int __DEINIT_FLAGS__[];
 extern string UnitSize            = "[L]{double} | auto*";     // fixed (double), compounding (L{double}) or pre-configured (auto) unitsize
 extern string StartConditions     = "";                        //
 extern string StopConditions      = "";                        //
-extern bool   ShowProfitInPercent = true;                      // whether PL is displayed in absolute or percentage values
+extern bool   ShowProfitInPercent = true;                      // whether PL is displayed in absolute or percentage terms
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

@@ -14,7 +14,7 @@
 //      OrderModify().
 #define ERR_TRADESERVER_GONE                                          2
 #define ERR_COMMON_ERROR                           ERR_TRADESERVER_GONE    // MetaQuotes alias
-//      The trade request failed. A trade server or trade server related execution error.
+//      The trade request failed. A trade server related execution error.
 #define ERR_INVALID_TRADE_PARAMETERS                                  3
 //      Invalid parameters were passed, e.g. wrong symbol, unknown trade operation, negative slippage, non-existing ticket.
 #define ERR_SERVER_BUSY                                               4
@@ -204,7 +204,7 @@
 #define ERR_FUNC_NOT_ALLOWED                                      65540    // function not allowed
 #define ERR_HISTORY_INSUFFICIENT                                  65541    // history insufficient for calculation
 #define ERR_ILLEGAL_STATE                                         65542    // illegal state
-#define ERR_INVALID_ACCESS                                        65543    // invalid access
+#define ERR_ACCESS_DENIED                                         65543    // access denied
 #define ERR_INVALID_COMMAND                                       65544    // invalid or unknown command
 #define ERR_INVALID_CONFIG_VALUE                                  65545    // invalid configuration parameter
 #define ERR_INVALID_FILE_FORMAT                                   65546    // invalid file format
@@ -218,6 +218,7 @@
 #define ERR_TERMINAL_INIT_FAILURE                                 65554    // multiple Expert::init() calls
 #define ERS_TERMINAL_NOT_YET_READY                                65555    // terminal not yet ready (temporary state; in scripts treated as error)
 #define ERR_TOTAL_POSITION_NOT_FLAT                               65556    // total position encountered when flat position was expected
+#define ERR_UNDEFINED_STATE                                       65557    // undefined state or behaviour
 
 // user defined errors >=100000 are mapped Win32 errors: win32-error + 100000 = mql-error
 #define ERR_WIN32_ERROR                                          100000    // 100000 => win32:0 => ERROR_SUCCESS

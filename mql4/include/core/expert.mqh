@@ -10,8 +10,9 @@ extern double   Tester.StartPrice               = 0;                 // price to
 
 #include <functions/InitializeByteBuffer.mqh>
 
-// current price series
-double rates[][6];
+
+double rates[][6];                                                   // current price series
+int    tickTimerId;                                                  // timer id for virtual ticks
 
 // test metadata
 string tester.starttime         = "";
@@ -22,7 +23,7 @@ int    tester.reportId          = 0;
 string tester.reportSymbol      = "";
 string tester.reportDescription = "";
 double tester.equityValue       = 0;                                 // default: AccountEquity()-AccountCredit(), may be overridden
-int    tester.hEquitySet        = 0;                                 // handle of the equity curve's history set
+int    tester.hEquitySet        = 0;                                 // handle of the equity's history set
 
 
 /**
@@ -74,7 +75,7 @@ int init() {
    }
 
    // finish initialization of global vars
-   if (!init.UpdateGlobalVars()) if (CheckErrors("init(3)")) return(last_error);
+   if (!init.GlobalVars()) if (CheckErrors("init(3)")) return(last_error);
 
    // execute custom init tasks
    int initFlags = __ExecutionContext[EC.programInitFlags];
@@ -97,7 +98,6 @@ int init() {
       if (!tickValue) return(log("init(9)  MarketInfo(MODE_TICKVALUE) = 0", SetLastError(ERS_TERMINAL_NOT_YET_READY)));
    }
    if (initFlags & INIT_BARS_ON_HIST_UPDATE && 1) {}                 // not yet implemented
-   if (initFlags & INIT_CUSTOMLOG           && 1) {}                 // not yet implemented
 
    // enable experts if disabled
    int reasons1[] = {UR_UNDEFINED, UR_CHARTCLOSE, UR_REMOVE};
@@ -200,7 +200,15 @@ int init() {
       return(last_error);
    ShowStatus(last_error);
 
-   // don't wait and immediately send a fake tick (except on UR_CHARTCHANGE)
+   // setup virtual ticks to continue operation on a stalled data feed
+   if (!IsTesting()) {
+      int hWnd    = __ExecutionContext[EC.hChart];
+      int millis  = 10 * 1000;                                             // every 10 seconds
+      tickTimerId = SetupTickTimer(hWnd, millis, NULL);
+      if (!tickTimerId) return(catch("init(18)->SetupTickTimer(hWnd="+ IntToHexStr(hWnd) +") failed", ERR_RUNTIME_ERROR));
+   }
+
+   // immediately send a virtual tick (except on UR_CHARTCHANGE)
    if (UninitializeReason() != UR_CHARTCHANGE)                             // At the very end, otherwise the Windows message
       Chart.SendTick();                                                    // queue may be processed before this function is
    return(last_error);                                                     // left and the tick gets lost.
@@ -208,30 +216,31 @@ int init() {
 
 
 /**
- * Update global variables and the expert's EXECUTION_CONTEXT.
+ * Update global variables and the expert's EXECUTION_CONTEXT. Called immediately after SyncMainContext_init().
  *
  * @return bool - success status
  */
-bool init.UpdateGlobalVars() {
-   ec_SetLogging(__ExecutionContext, IsLogging());                         // TODO: move to MT4Expander
-
-   N_INF = MathLog(0);
-   P_INF = -N_INF;
-   NaN   =  N_INF - N_INF;
-
+bool init.GlobalVars() {
    PipDigits      = Digits & (~1);                                        SubPipDigits      = PipDigits+1;
    PipPoints      = MathRound(MathPow(10, Digits & 1));                   PipPoint          = PipPoints;
    Pips           = NormalizeDouble(1/MathPow(10, PipDigits), PipDigits); Pip               = Pips;
    PipPriceFormat = StringConcatenate(".", PipDigits);                    SubPipPriceFormat = StringConcatenate(PipPriceFormat, "'");
    PriceFormat    = ifString(Digits==PipDigits, PipPriceFormat, SubPipPriceFormat);
 
-   __LOG_CUSTOM     = ec_CustomLogging(__ExecutionContext);                // supported by experts only
-   __LOG_WARN.mail  = init.LogWarningsToMail();                            // ...
-   __LOG_WARN.sms   = init.LogWarningsToSMS();                             // ...
-   __LOG_ERROR.mail = init.LogErrorsToMail();                              // ...
-   __LOG_ERROR.sms  = init.LogErrorsToSMS();                               // ...
+   ec_SetLogEnabled          (__ExecutionContext, init.IsLogEnabled());
+   ec_SetLogToDebugEnabled   (__ExecutionContext, GetConfigBool("Logging", "LogToDebug", true));
+   ec_SetLogToTerminalEnabled(__ExecutionContext, true);
 
-   return(!catch("init.UpdateGlobalVars(1)"));
+   __LOG_WARN.mail  = init.LogWarningsToMail();
+   __LOG_WARN.sms   = init.LogWarningsToSMS();
+   __LOG_ERROR.mail = init.LogErrorsToMail();
+   __LOG_ERROR.sms  = init.LogErrorsToSMS();
+
+   N_INF = MathLog(0);
+   P_INF = -N_INF;
+   NaN   =  N_INF - N_INF;
+
+   return(!catch("init.GlobalVars(1)"));
 }
 
 
@@ -246,20 +255,25 @@ int start() {
       if (IsDllsAllowed() && IsLibrariesAllowed() && __STATUS_OFF.reason!=ERR_TERMINAL_INIT_FAILURE) {
          if (__CHART()) ShowStatus(__STATUS_OFF.reason);
          static bool tester.stopped = false;
-         if (IsTesting() && !tester.stopped) {                                      // Stop the tester in case of errors.
-            Tester.Stop("start(1)");                                                // Covers errors in init(), too.
+         if (IsTesting() && !tester.stopped) {                                      // ctop the tester in case of errors
+            Tester.Stop("start(1)");                                                // covers errors in init(), too
             tester.stopped = true;
          }
       }
       return(last_error);
    }
 
+   // resolve tick status
    Tick++;                                                                          // simple counter, the value is meaningless
-   Tick.Time      = MarketInfo(Symbol(), MODE_TIME);
-   Tick.isVirtual = true;
-   ChangedBars    = -1;                                                             // in experts not available
-   UnchangedBars  = -1;                                                             // ...
-   ShiftedBars    = -1;                                                             // ...
+   Tick.Time = MarketInfo(Symbol(), MODE_TIME);
+   static int lastVolume;
+   if      (!Volume[0] || !lastVolume) Tick.isVirtual = true;
+   else if ( Volume[0] ==  lastVolume) Tick.isVirtual = true;
+   else                                Tick.isVirtual = false;
+   lastVolume = Volume[0];
+   ChangedBars   = -1;                                                              // in experts not available
+   UnchangedBars = -1;                                                              // ...
+   ShiftedBars   = -1;                                                              // ...
 
    // if called after init() check it's return value
    if (__WHEREAMI__ == CF_INIT) {
@@ -298,7 +312,7 @@ int start() {
    if (IsTesting()) {
       if (Tester.StartTime != 0) {
          if (Tick.Time < Tester.StartTime) {
-            Comment(StringConcatenate(NL, NL, NL, "Tester: starting at ", tester.starttime));
+            Comment(NL, NL, NL, "Tester: starting at ", tester.starttime);
             return(last_error);
          }
          Tester.StartTime = 0;
@@ -306,17 +320,17 @@ int start() {
       if (Tester.StartPrice != 0) {
          static double tester.lastPrice; if (!tester.lastPrice) {
             tester.lastPrice = Bid;
-            Comment(StringConcatenate(NL, NL, NL, "Tester: starting at ", tester.startprice));
+            Comment(NL, NL, NL, "Tester: starting at ", tester.startprice);
             return(last_error);
          }
          if (LT(tester.lastPrice, Tester.StartPrice)) /*&&*/ if (LT(Bid, Tester.StartPrice)) {
             tester.lastPrice = Bid;
-            Comment(StringConcatenate(NL, NL, NL, "Tester: starting at ", tester.startprice));
+            Comment(NL, NL, NL, "Tester: starting at ", tester.startprice);
             return(last_error);
          }
          if (GT(tester.lastPrice, Tester.StartPrice)) /*&&*/ if (GT(Bid, Tester.StartPrice)) {
             tester.lastPrice = Bid;
-            Comment(StringConcatenate(NL, NL, NL, "Tester: starting at ", tester.startprice));
+            Comment(NL, NL, NL, "Tester: starting at ", tester.startprice);
             return(last_error);
          }
          Tester.StartPrice = 0;
@@ -388,6 +402,13 @@ int deinit() {
       }
    }
 
+   // reset the virtual tick timer
+   if (tickTimerId != NULL) {
+      int id = tickTimerId;
+      tickTimerId = NULL;
+      if (!RemoveTickTimer(id)) return(catch("deinit(2)->RemoveTickTimer(timerId="+ id +") failed", ERR_RUNTIME_ERROR));
+   }
+
    // Execute user-specific deinit() handlers (if implemented). Handlers are executed as long as the previous handler doesn't
    // return with an error.
    error = onDeinit();                                                     // preprocessing hook
@@ -406,14 +427,14 @@ int deinit() {
          case UR_CLOSE      : error = onDeinitClose();         break;      //
                                                                            //
          default:                                                          //
-            CheckErrors("deinit(2)  unknown UninitializeReason = "+ UninitializeReason(), ERR_RUNTIME_ERROR);
+            CheckErrors("deinit(3)  unknown UninitializeReason = "+ UninitializeReason(), ERR_RUNTIME_ERROR);
             return(last_error|LeaveContext(__ExecutionContext));           //
       }                                                                    //
    }                                                                       //
    if (!error)                                                             //
       error = afterDeinit();                                               // postprocessing hook
 
-   CheckErrors("deinit(3)");
+   CheckErrors("deinit(4)");
    return(last_error|LeaveContext(__ExecutionContext));
 }
 
@@ -525,6 +546,19 @@ bool CheckErrors(string location, int setError = NULL) {
 
    // suppress compiler warnings
    __DummyCalls();
+   SetCustomLog(NULL);
+}
+
+
+/**
+ * Configure the use of a custom logfile.
+ *
+ * @param  string filename - name of a custom logfile or an empty string to disable custom logging
+ *
+ * @return bool - success status
+ */
+bool SetCustomLog(string filename) {
+   return(SetCustomLogA(__ExecutionContext, filename));
 }
 
 
@@ -716,9 +750,12 @@ bool Tester.RecordEquity() {
    bool   IntInArray(int haystack[], int needle);
 
 #import "rsfExpander.dll"
-   int    ec_SetDllError           (/*EXECUTION_CONTEXT*/int ec[], int error       );
-   bool   ec_SetLogging            (/*EXECUTION_CONTEXT*/int ec[], int status      );
-   int    ec_SetProgramCoreFunction(/*EXECUTION_CONTEXT*/int ec[], int coreFunction);
+   int    ec_SetDllError            (int ec[], int error   );
+   bool   ec_SetLogEnabled          (int ec[], int status  );
+   bool   ec_SetLogToDebugEnabled   (int ec[], int status  );
+   bool   ec_SetLogToTerminalEnabled(int ec[], int status  );
+   int    ec_SetProgramCoreFunction (int ec[], int function);
+   bool   SetCustomLogA             (int ec[], string file );
 
    string symbols_Name(/*SYMBOL*/int symbols[], int i);
 

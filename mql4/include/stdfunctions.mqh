@@ -42,27 +42,35 @@ int start.RelaunchInputDialog() {
  *  - The terminal must run with Administrator rights for OutputDebugString() to transport debug messages.
  */
 int debug(string message, int error = NO_ERROR) {
+   static bool recursiveCall = false;
+   if (recursiveCall) {                               // prevent recursive calls
+      Print("debug(1)  recursive call: ", message);
+      return(error);
+   }
+   recursiveCall = true;
+
    if (error != NO_ERROR) message = StringConcatenate(message, "  [", ErrorToStr(error), "]");
 
    if (This.IsTesting()) string application = StringConcatenate(GmtTimeFormat(MarketInfo(Symbol(), MODE_TIME), "%d.%m.%Y %H:%M:%S"), " Tester::");
    else                         application = "MetaTrader::";
 
    OutputDebugStringA(StringConcatenate(application, Symbol(), ",", PeriodDescription(Period()), "::", __NAME(), "::", StrReplace(StrReplaceR(message, NL+NL, NL), NL, " ")));
+
+   recursiveCall = false;
    return(error);
 }
 
 
 /**
- * Check if an error occurred and signal it (debug output console, visual, audible, if configured by email, if configured by
- * text message). The error is stored in the global var "last_error". After the function returned the internal MQL error code
- * as read by GetLastError() is always reset.
+ * Check if an error occurred and signal it. The error is stored in the global var "last_error". After the function returned
+ * the internal MQL error code as returned by GetLastError() is always reset.
  *
- * @param  string location - the error's location identifier incl. an optional message
- * @param  int    error    [optional] - enforces a specific error (default: none)
- * @param  bool   orderPop [optional] - whether an order context stored on the order context stack should be restored
+ * @param  string location            - the error's location identifier incl. optional message
+ * @param  int    error    [optional] - enforce a specific error (default: none)
+ * @param  bool   orderPop [optional] - whether the last order context should be restored from the order context stack
  *                                      (default: no)
  *
- * @return int - the occurred or enforced error
+ * @return int - the same error
  */
 int catch(string location, int error=NO_ERROR, bool orderPop=false) {
    orderPop = orderPop!=0;
@@ -71,54 +79,44 @@ int catch(string location, int error=NO_ERROR, bool orderPop=false) {
    else if (error == ERR_WIN32_ERROR) { error += GetLastWin32Error(); GetLastError(); }
    else                               {                               GetLastError(); }
 
-   static bool recursive = false;
+   static bool recursiveCall = false;
 
    if (error != NO_ERROR) {
-      if (recursive)                                                          // prevent recursive errors
-         return(debug("catch(1)  recursive error: "+ location, error));
-      recursive = true;
+      if (recursiveCall)                                                                              // prevent recursive calls
+         return(debug("catch(1)  recursive call: "+ location, error));
+      recursiveCall = true;
 
-      // send the error to the debug output console
+      // always send the error to the system debugger
       debug("ERROR: "+ location, error);
 
-      // extend the program name by an instance id (if any)
-      string name=__NAME(), nameInstanceId;
-      int logId = 0;//GetCustomLogID();                                       // TODO: GetCustomLogID() must be moved from the library
-      if (!logId) nameInstanceId = name;
-      else {
-         int pos = StringFind(name, "::");
-         if (pos == -1) nameInstanceId = StringConcatenate(        name,       "(", logId, ")");
-         else           nameInstanceId = StringConcatenate(StrLeft(name, pos), "(", logId, ")", StrSubstr(name, pos));
-      }
-
       // log the error
-      string message = StringConcatenate(location, "  [", ErrorToStr(error), "]");
+      string name    = __NAME();
+      string message = location +"  ["+ ErrorToStr(error) +"]";
       bool logged, alerted;
-      if (false && __LOG_CUSTOM)
-         logged = logged || __log.custom(StringConcatenate("ERROR: ", name, "::", message));                   // custom log: w/o instance id, on error fall-back to standard logging
+      if (__ExecutionContext[EC.logToCustomEnabled] != 0)                                             // custom log, on error fall-back to terminal log
+         logged = logged || LogMessageA(__ExecutionContext, "ERROR: "+ name +"::"+ message, error);
       if (!logged) {
-         Alert("ERROR:   ", Symbol(), ",", PeriodDescription(Period()), "  ", nameInstanceId, "::", message);  // standard log: with instance id (if any)
+         Alert("ERROR:   ", Symbol(), ",", PeriodDescription(Period()), "  ", name, "::", message);   // terminal log
          logged  = true;
          alerted = alerted || !IsExpert() || !IsTesting();
       }
-      message = StringConcatenate(nameInstanceId, "::", message);
+      message = name +"::"+ message;
 
       // display the error
       if (IsTesting()) {
-         // in tester neither Alert() nor MessageBox() must be used
-         string caption = StringConcatenate("Strategy Tester ", Symbol(), ",", PeriodDescription(Period()));
-         pos = StringFind(message, ") ");
-         if (pos == -1) message = StringConcatenate("ERROR in ", message);          // wrap message after the closing function brace
-         else           message = StringConcatenate("ERROR in ", StrLeft(message, pos+1), NL, StringTrimLeft(StrSubstr(message, pos+2)));
-                        message = StringConcatenate(TimeToStr(TimeCurrentEx("catch(2)"), TIME_FULL), NL, message);
+         // neither Alert() nor MessageBox() can be used
+         string caption = "Strategy Tester "+ Symbol() +","+ PeriodDescription(Period());
+         int pos = StringFind(message, ") ");
+         if (pos == -1) message = "ERROR in "+ message;                                               // wrap message after the closing function brace
+         else           message = "ERROR in "+ StrLeft(message, pos+1) + NL + StringTrimLeft(StrSubstr(message, pos+2));
+                        message = TimeToStr(TimeCurrentEx("catch(2)"), TIME_FULL) + NL + message;
          PlaySoundEx("alert.wav");
          MessageBoxEx(caption, message, MB_ICONERROR|MB_OK|MB_DONT_LOG);
          alerted = true;
       }
       else {
-         message = StringConcatenate("ERROR:   ", Symbol(), ",", PeriodDescription(Period()), "  ", message);
+         message = "ERROR:   "+ Symbol() +","+ PeriodDescription(Period()) +"  "+ message;
          if (!alerted) {
-            // an EA not in tester, or a script/indicator in or outside of tester
             Alert(message);
             alerted = true;
          }
@@ -129,9 +127,9 @@ int catch(string location, int error=NO_ERROR, bool orderPop=false) {
          }
       }
 
-      // set var last_error
+      // set last_error
       SetLastError(error, NULL);
-      recursive = false;
+      recursiveCall = false;
    }
 
    if (orderPop)
@@ -141,7 +139,7 @@ int catch(string location, int error=NO_ERROR, bool orderPop=false) {
 
 
 /**
- * Show a warning with an optional error (visual and audible) but don't set the error.
+ * Show a warning with an optional error but don't set the error.
  *
  * @param  string message          - message to display
  * @param  int    error [optional] - error to display
@@ -149,48 +147,43 @@ int catch(string location, int error=NO_ERROR, bool orderPop=false) {
  * @return int - the same error
  */
 int warn(string message, int error = NO_ERROR) {
-   // Warnung zusätzlich an Debug-Ausgabe schicken
+   static bool recursiveCall = false;
+   if (recursiveCall)                                                                           // prevent recursive calls
+      return(debug("warn(1)  recursive call: "+ message, error));
+   recursiveCall = true;
+
+   // always send the warning to the system debugger
    debug("WARN: "+ message, error);
 
-   // Programmnamen um Instanz-ID erweitern
-   string name=__NAME(), nameWithId;
-   int logId = 0; //GetCustomLogID();                                   // TODO: must be moved out of the library
-   if (logId != 0) {
-      int pos = StringFind(name, "::");
-      if (pos == -1) nameWithId = StringConcatenate(        name,       "(", logId, ")");
-      else           nameWithId = StringConcatenate(StrLeft(name, pos), "(", logId, ")", StrSubstr(name, pos));
-   }
-   else              nameWithId = name;
+   if (error != NO_ERROR) message = message +"  ["+ ErrorToStr(error) +"]";
 
-   if (error != NO_ERROR) message = StringConcatenate(message, "  [", ErrorToStr(error), "]");
-
-   // Warnung loggen
+   // log the warning
+   string name = __NAME();
    bool logged, alerted;
-   if (__LOG_CUSTOM)
-      logged = logged || __log.custom(StringConcatenate("WARN: ", name, "::", message));              // custom Log: ohne Instanz-ID, bei Fehler Fallback zum Standardlogging
+   if (__ExecutionContext[EC.logToCustomEnabled] != 0)                                          // custom log, on error fall-back to terminal log
+      logged = logged || LogMessageA(__ExecutionContext, "WARN: "+ name +"::"+ message, error);
    if (!logged) {
-      Alert("WARN:   ", Symbol(), ",", PeriodDescription(Period()), "  ", nameWithId, "::", message); // global Log: ggf. mit Instanz-ID
+      Alert("WARN:   ", Symbol(), ",", PeriodDescription(Period()), "  ", name, "::", message); // terminal log
       logged  = true;
       alerted = !IsExpert() || !IsTesting();
    }
-   message = StringConcatenate(nameWithId, "::", message);
+   message = name +"::"+ message;
 
-   // Warnung anzeigen
+   // display the warning
    if (IsTesting()) {
-      // weder Alert() noch MessageBox() können verwendet werden
-      string caption = StringConcatenate("Strategy Tester ", Symbol(), ",", PeriodDescription(Period()));
-      pos = StringFind(message, ") ");
-      if (pos == -1) message = StringConcatenate("WARN in ", message);                       // Message am ersten Leerzeichen nach der ersten schließenden Klammer umbrechen
-      else           message = StringConcatenate("WARN in ", StrLeft(message, pos+1), NL, StringTrimLeft(StrSubstr(message, pos+2)));
-                     message = StringConcatenate(TimeToStr(TimeCurrentEx("warn(1)"), TIME_FULL), NL, message);
+      // neither Alert() nor MessageBox() can be used
+      string caption = "Strategy Tester "+ Symbol() +","+ PeriodDescription(Period());
+      int pos = StringFind(message, ") ");
+      if (pos == -1) message = "WARN in "+ message;                                             // wrap message after the closing function brace
+      else           message = "WARN in "+ StrLeft(message, pos+1) + NL + StringTrimLeft(StrSubstr(message, pos+2));
+                     message = TimeToStr(TimeCurrentEx("warn(1)"), TIME_FULL) + NL + message;
 
       PlaySoundEx("alert.wav");
       MessageBoxEx(caption, message, MB_ICONERROR|MB_OK|MB_DONT_LOG);
    }
    else {
-      message = StringConcatenate("WARN:   ", Symbol(), ",", PeriodDescription(Period()), "  ", message);
+      message = "WARN:   "+ Symbol() +","+ PeriodDescription(Period()) +"  "+ message;
       if (!alerted) {
-         // außerhalb des Testers
          Alert(message);
          alerted = true;
       }
@@ -200,93 +193,48 @@ int warn(string message, int error = NO_ERROR) {
          if (__LOG_WARN.sms)  SendSMS  (__LOG_WARN.sms.receiver, message + NL + accountTime);
       }
    }
+
+   recursiveCall = false;
    return(error);
 }
 
 
 /**
- * Log a message to the terminal's MQL logfile or the program's custom logfile (if configured).
+ * Log a message to the configured log appenders.
  *
  * @param  string message
- * @param  int    error [optional] - optional error to log (default: none)
+ * @param  int    error [optional] - error to log (default: none)
  *
  * @return int - the same error
  */
 int log(string message, int error = NO_ERROR) {
-   if (!__LOG()) return(error);
+   if (!__ExecutionContext[EC.logEnabled]) return(error);         // skip logging if fully disabled
 
-   // ggf. zusätzliche Ausgabe via OutputDebug()
-   static int logToDebug = -1;
-   if (logToDebug == -1) logToDebug = GetConfigBool("Logging", "LogToDebug", true);
-   if (logToDebug ==  1) debug(message, error);
+   static bool recursiveCall = false;
+   if (recursiveCall)                                             // prevent recursive calls
+      return(debug("log(1)  recursive call: "+ message, error));
+   recursiveCall = true;
 
-   if (error != NO_ERROR) message = StringConcatenate(message, "  [", ErrorToStr(error), "]");
-
-   // log to custom file or...
-   string name = __NAME();
-   if (__LOG_CUSTOM) {
-      if (__log.custom(StringConcatenate(name, "::", message)))            // custom Log: ohne Instanz-ID, bei Fehler Fallback zum Standardlogging
-         return(error);
+   if (__ExecutionContext[EC.logToDebugEnabled] != 0) {           // send the message to the system debugger
+      debug(message, error);
+   }
+   if (__ExecutionContext[EC.logToTerminalEnabled] != 0) {        // send the message to the terminal log
+      string sError = "";
+      if (error != NO_ERROR) sError = "  ["+ ErrorToStr(error) +"]";
+      Print(__NAME(), "::", message, sError);
+   }
+   if (__ExecutionContext[EC.logToCustomEnabled] != 0) {          // send the message to a custom logger
+      LogMessageA(__ExecutionContext, message, error);
    }
 
-   // log to the terminal's MQL log
-   int logId = 0; //GetCustomLogID();                                      // TODO: must be moved out of the library
-   if (logId != 0) {
-      int pos = StringFind(name, "::");
-      if (pos == -1) name = StringConcatenate(        name,       "(", logId, ")");
-      else           name = StringConcatenate(StrLeft(name, pos), "(", logId, ")", StrSubstr(name, pos));
-   }
-   Print(StringConcatenate(name, "::", StrReplace(StrReplaceR(message, NL+NL, NL), NL, " ")));  // global Log: ggf. mit Instanz-ID
-
+   recursiveCall = false;
    return(error);
 }
 
 
 /**
- * Loggt eine Message in das Logfile des Programms.
- *
- * @param  string message - vollständige zu loggende Message (ohne Zeitstempel, Symbol, Timeframe)
- *
- * @return bool - Erfolgsstatus: u.a. FALSE, wenn das Instanz-eigene Logfile nicht definiert ist
- *
- * @access private - Aufruf nur aus log()
- */
-bool __log.custom(string message) {
-   bool old.LOG_CUSTOM = __LOG_CUSTOM;
-   int logId = GetCustomLogID();
-   if (logId == NULL)
-      return(false);
-
-   message = StringConcatenate(TimeToStr(TimeLocalEx("__log.custom(1)"), TIME_FULL), "  ", StdSymbol(), ",", StrPadRight(PeriodDescription(Period()), 3, " "), "  ", StrReplace(StrReplaceR(message, NL+NL, NL), NL, " "));
-
-   string fileName = StringConcatenate(logId, ".log");
-
-   int hFile = FileOpen(fileName, FILE_READ|FILE_WRITE);
-   if (hFile < 0) {
-      __LOG_CUSTOM = false; catch("__log.custom(2)->FileOpen(\""+ fileName +"\")"); __LOG_CUSTOM = old.LOG_CUSTOM;
-      return(false);
-   }
-
-   if (!FileSeek(hFile, 0, SEEK_END)) {
-      __LOG_CUSTOM = false; catch("__log.custom(3)->FileSeek()"); __LOG_CUSTOM = old.LOG_CUSTOM;
-      FileClose(hFile);
-      return(_false(GetLastError()));
-   }
-
-   if (FileWrite(hFile, message) < 0) {
-      __LOG_CUSTOM = false; catch("__log.custom(4)->FileWrite()"); __LOG_CUSTOM = old.LOG_CUSTOM;
-      FileClose(hFile);
-      return(_false(GetLastError()));
-   }
-
-   FileClose(hFile);
-   return(true);
-}
-
-
-/**
- * Set the last error code of the module. If called in a library the error will bubble up to the library's main module.
- * If called in an indicator loaded by iCustom() the error will bubble up to the loading program. The error code NO_ERROR
+ * Set the last error code of the module. If called in a library the error will bubble up to the program's main module.
+ * If called in an indicator loaded by iCustom() the error will bubble up to the caller of iCustom(). The error code NO_ERROR
  * will never bubble up.
  *
  * @param  int error - error code
@@ -298,7 +246,7 @@ int SetLastError(int error, int param = NULL) {
    last_error = ec_SetMqlError(__ExecutionContext, error);
 
    if (error != NO_ERROR) /*&&*/ if (IsExpert())
-      CheckErrors("SetLastError(1)");                                // update __STATUS_OFF in experts
+      CheckErrors("SetLastError(1)");                             // update __STATUS_OFF in experts
    return(error);
 }
 
@@ -491,7 +439,7 @@ string ErrorDescription(int error) {
       case ERR_FUNC_NOT_ALLOWED           : return("function not allowed"                                      );    //  65540
       case ERR_HISTORY_INSUFFICIENT       : return("insufficient history for calculation"                      );    //  65541
       case ERR_ILLEGAL_STATE              : return("illegal runtime state"                                     );    //  65542
-      case ERR_INVALID_ACCESS             : return("invalid access"                                            );    //  65543
+      case ERR_ACCESS_DENIED              : return("access denied"                                             );    //  65543
       case ERR_INVALID_COMMAND            : return("invalid or unknow command"                                 );    //  65544
       case ERR_INVALID_CONFIG_VALUE       : return("invalid configuration value"                               );    //  65545
       case ERR_INVALID_FILE_FORMAT        : return("invalid file format"                                       );    //  65546
@@ -505,6 +453,7 @@ string ErrorDescription(int error) {
       case ERR_TERMINAL_INIT_FAILURE      : return("multiple Expert::init() calls"                             );    //  65554
       case ERS_TERMINAL_NOT_YET_READY     : return("terminal not yet ready"                                    );    //  65555   status
       case ERR_TOTAL_POSITION_NOT_FLAT    : return("total position encountered when flat position was expected");    //  65556
+      case ERR_UNDEFINED_STATE            : return("undefined state or behaviour"                              );    //  65557
    }
    return(StringConcatenate("unknown error (", error, ")"));
 }
@@ -1155,20 +1104,20 @@ double GetCommission(double lots = 1.0) {
 
 
 /**
- * Whether the current program's logging status is activated. By default logging in the tester is "disabled" and outside of
- * the tester "enabled".
+ * Whether logging in general is enabled (read from the configuration). By default online logging is enabled and offline
+ * logging (tester) is disabled. Called only from init.GlobalVars().
  *
  * @return bool
  */
-bool IsLogging() {
+bool init.IsLogEnabled() {
    if (This.IsTesting())
-      return(GetConfigBool("Logging", "LogInTester", false));                    // in tester:     default=off
-   return(GetConfigBool("Logging", ec_ProgramName(__ExecutionContext), true));   // not in tester: default=on
+      return(GetConfigBool("Logging", "LogInTester", false));                    // tester: default=off
+   return(GetConfigBool("Logging", ec_ProgramName(__ExecutionContext), true));   // online: default=on
 }
 
 
 /**
- * Inlined conditional Boolean-Statement.
+ * Inlined conditional Boolean statement.
  *
  * @param  bool condition
  * @param  bool thenValue
@@ -1184,7 +1133,7 @@ bool ifBool(bool condition, bool thenValue, bool elseValue) {
 
 
 /**
- * Inlined conditional Integer-Statement.
+ * Inlined conditional Integer statement.
  *
  * @param  bool condition
  * @param  int  thenValue
@@ -1200,7 +1149,7 @@ int ifInt(bool condition, int thenValue, int elseValue) {
 
 
 /**
- * Inlined conditional Double-Statement.
+ * Inlined conditional Double statement.
  *
  * @param  bool   condition
  * @param  double thenValue
@@ -1216,7 +1165,7 @@ double ifDouble(bool condition, double thenValue, double elseValue) {
 
 
 /**
- * Inlined conditional String-Statement.
+ * Inlined conditional String statement.
  *
  * @param  bool   condition
  * @param  string thenValue
@@ -1615,15 +1564,12 @@ bool __CHART() {
 
 
 /**
- * Whether logging is configured for the current program. Without a configuration the following default settings apply:
- *
- * In tester:     off
- * Not in tester: on
+ * Whether logging is enabled for the current program.
  *
  * @return bool
  */
 bool __LOG() {
-   return(__ExecutionContext[EC.logging] != 0);
+   return(__ExecutionContext[EC.logEnabled] != 0);
 }
 
 
@@ -3752,7 +3698,7 @@ datetime TimeGMT() {
 
    if (This.IsTesting()) {
       // TODO: Scripte und Indikatoren sehen bei Aufruf von TimeLocal() im Tester u.U. nicht die modellierte, sondern die reale Zeit oder sogar NULL.
-      datetime localTime = TimeLocalEx("TimeGMT(1)"); if (!localTime) return(NULL);
+      datetime localTime = GetLocalTime(); if (!localTime) return(NULL);
       gmt = ServerToGmtTime(localTime);                              // TimeLocal() entspricht im Tester der Serverzeit
    }
    else {
@@ -3795,25 +3741,6 @@ datetime GetFxtTime() {
 datetime GetServerTime() {
    datetime gmt  = GetGmtTime();         if (!gmt)        return(NULL);
    datetime time = GmtToServerTime(gmt); if (time == NaT) return(NULL);
-   return(time);
-}
-
-
-/**
- * Gibt die aktuelle lokale Zeit des Terminals zurück. Im Tester entspricht diese Zeit dem Zeitpunkt des letzten Ticks.
- * Dies bedeutet, daß das Terminal während des Testens die lokale Zeitzone auf die Serverzeitzone setzt.
- *
- * @param  string location - Bezeichner für eine evt. Fehlermeldung
- *
- * @return datetime - Zeitpunkt oder NULL, falls ein Fehler auftrat
- *
- *
- * NOTE: Diese Funktion meldet im Unterschied zur Originalfunktion einen Fehler, wenn TimeLocal() einen falschen Wert (NULL)
- *       zurückgibt.
- */
-datetime TimeLocalEx(string location = "") {
-   datetime time = TimeLocal();
-   if (!time) return(!catch(location + ifString(!StringLen(location), "", "->") +"TimeLocalEx(1)->TimeLocal() = 0", ERR_RUNTIME_ERROR));
    return(time);
 }
 
@@ -5638,28 +5565,14 @@ string ShellExecuteErrorDescription(int error) {
 
 
 /**
- * Alias of LogOrder()
- *
- * Log the orderdata of a ticket. Replacement for the limited built-in function OrderPrint().
+ * Log the order data of a ticket. Replacement for the limited built-in function OrderPrint().
  *
  * @param  int ticket
  *
  * @return bool - success status
  */
 bool LogTicket(int ticket) {
-   return(LogOrder(ticket));
-}
-
-
-/**
- * Log the orderdata of a ticket. Replacement for the limited built-in function OrderPrint().
- *
- * @param  int ticket
- *
- * @return bool - success status
- */
-bool LogOrder(int ticket) {
-   if (!SelectTicket(ticket, "LogOrder(1)", O_PUSH))
+   if (!SelectTicket(ticket, "LogTicket(1)", O_PUSH))
       return(false);
 
    int      type        = OrderType();
@@ -5682,9 +5595,9 @@ bool LogOrder(int ticket) {
    string   priceFormat = "."+ pipDigits + ifString(digits==pipDigits, "", "'");
    string   message     = StringConcatenate("#", ticket, " ", OrderTypeDescription(type), " ", NumberToStr(lots, ".1+"), " ", symbol, " at ", NumberToStr(openPrice, priceFormat), " (", TimeToStr(openTime, TIME_FULL), "), sl=", ifString(stopLoss, NumberToStr(stopLoss, priceFormat), "0"), ", tp=", ifString(takeProfit, NumberToStr(takeProfit, priceFormat), "0"), ",", ifString(closeTime, " closed at "+ NumberToStr(closePrice, priceFormat) +" ("+ TimeToStr(closeTime, TIME_FULL) +"),", ""), " commission=", DoubleToStr(commission, 2), ", swap=", DoubleToStr(swap, 2), ", profit=", DoubleToStr(profit, 2), ", magicNumber=", magic, ", comment=", DoubleQuoteStr(comment));
 
-   log("LogOrder()  "+ message);
+   log("LogTicket()  "+ message);
 
-   return(OrderPop("LogOrder(2)"));
+   return(OrderPop("LogTicket(2)"));
 }
 
 
@@ -5736,7 +5649,6 @@ bool SendChartCommand(string cmdObject, string cmd, string cmdMutex = "") {
 bool SendEmail(string sender, string receiver, string subject, string message) {
    string filesDir = GetMqlFilesPath() +"\\";
 
-
    // (1) Validierung
    // Sender
    string _sender = StrTrim(sender);
@@ -5770,7 +5682,6 @@ bool SendEmail(string sender, string receiver, string subject, string message) {
    _subject = StrReplace(_subject, "'", "'\"'\"'");                                                      // Single-Quotes im bash-Parameter escapen
    // bash -lc 'email -subject "single-quote:'"'"' double-quote:\" pipe:|" ...'
 
-
    // (2) Message (kann leer sein): in temporärer Datei speichern, wenn nicht leer
    message = StrTrim(message);
    string message.txt = CreateTempFile(filesDir, "msg");
@@ -5781,7 +5692,6 @@ bool SendEmail(string sender, string receiver, string subject, string message) {
       FileClose(hFile);
       if (bytes <= 0) return(!catch("SendEmail(9)->FileWriteString() => "+ bytes +" written"));
    }
-
 
    // (3) benötigte Binaries ermitteln: Bash und Mailclient
    string bash = GetConfigString("System", "Bash");
@@ -5795,7 +5705,6 @@ bool SendEmail(string sender, string receiver, string subject, string message) {
       //       - sendmail suchen
       return(!catch("SendEmail(11)  missing global/local configuration [Mail]->Sendmail", ERR_INVALID_CONFIG_VALUE));
    }
-
 
    // (4) Befehlszeile für Shell-Aufruf zusammensetzen
    //
@@ -5817,14 +5726,12 @@ bool SendEmail(string sender, string receiver, string subject, string message) {
    string mail.log = StrReplace(filesDir +"mail.log", "\\", "/");
    string cmdLine  = sendmail +" -subject \""+ _subject +"\" -from-addr \""+ sender +"\" \""+ receiver +"\" < \""+ message.txt +"\" >> \""+ mail.log +"\" 2>&1; rm -f \""+ message.txt +"\"";
           cmdLine  = bash +" -lc '"+ cmdLine +"'";
-   //debug("SendEmail(12)  cmdLine="+ DoubleQuoteStr(cmdLine));
-
 
    // (5) Shell-Aufruf
    int result = WinExec(cmdLine, SW_HIDE);   // SW_SHOW | SW_HIDE
    if (result < 32) return(!catch("SendEmail(13)->kernel32::WinExec(cmdLine=\""+ cmdLine +"\")  "+ ShellExecuteErrorDescription(result), ERR_WIN32_ERROR+result));
 
-   log("SendEmail(14)  Mail from "+ sender +" to "+ receiver +" transmitted: \""+ subject +"\"");
+   if (__LOG()) log("SendEmail(14)  Mail to "+ receiver +" transmitted: \""+ subject +"\"");
    return(!catch("SendEmail(15)"));
 }
 
@@ -5874,7 +5781,7 @@ bool SendSMS(string receiver, string message) {
    // (2) Befehlszeile für Shellaufruf zusammensetzen
    string url          = "https://api.clickatell.com/http/sendmsg?user="+ username +"&password="+ password +"&api_id="+ api_id +"&to="+ _receiver +"&text="+ UrlEncode(message);
    string filesDir     = GetMqlFilesPath();
-   string responseFile = filesDir +"\\sms_"+ GmtTimeFormat(TimeLocalEx("SendSMS(7)"), "%Y-%m-%d %H.%M.%S") +"_"+ GetCurrentThreadId() +".response";
+   string responseFile = filesDir +"\\sms_"+ GmtTimeFormat(GetLocalTime(), "%Y-%m-%d %H.%M.%S") +"_"+ GetCurrentThreadId() +".response";
    string logFile      = filesDir +"\\sms.log";
    string cmd          = GetMqlDirectoryA() +"\\libraries\\wget.exe";
    string arguments    = "-b --no-check-certificate \""+ url +"\" -O \""+ responseFile +"\" -a \""+ logFile +"\"";
@@ -5882,7 +5789,7 @@ bool SendSMS(string receiver, string message) {
 
    // (3) Shellaufruf
    int result = WinExec(cmdLine, SW_HIDE);
-   if (result < 32) return(!catch("SendSMS(8)->kernel32::WinExec(cmdLine="+ DoubleQuoteStr(cmdLine) +")  "+ ShellExecuteErrorDescription(result), ERR_WIN32_ERROR+result));
+   if (result < 32) return(!catch("SendSMS(7)->kernel32::WinExec(cmdLine="+ DoubleQuoteStr(cmdLine) +")  "+ ShellExecuteErrorDescription(result), ERR_WIN32_ERROR+result));
 
    /**
     * TODO: Fehlerauswertung nach dem Versand:
@@ -5896,8 +5803,8 @@ bool SendSMS(string receiver, string message) {
     * Connecting to api.clickatell.com|196.216.236.7|:443... failed: Permission denied.
     * Giving up.
     */
-   log("SendSMS(9)  SMS sent to "+ receiver +": \""+ message +"\"");
-   return(!catch("SendSMS(10)"));
+   log("SendSMS(8)  SMS sent to "+ receiver +": \""+ message +"\"");
+   return(!catch("SendSMS(9)"));
 }
 
 
@@ -6678,7 +6585,6 @@ void __DummyCalls() {
    __CHART();
    __LOG();
    __NAME();
-   __log.custom(NULL);
    _bool(NULL);
    _double(NULL);
    _EMPTY();
@@ -6766,6 +6672,7 @@ void __DummyCalls() {
    iJMA(NULL, NULL, NULL, NULL, NULL, NULL);
    iMACDX(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
    iMovingAverage(NULL, NULL, NULL, NULL, NULL, NULL);
+   init.IsLogEnabled();
    init.LogErrorsToMail();
    init.LogErrorsToSMS();
    init.LogWarningsToMail();
@@ -6790,7 +6697,6 @@ void __DummyCalls() {
    IsLeapYear(NULL);
    IsLibrary();
    IsLimitOrderType(NULL);
-   IsLogging();
    IsLongOrderType(NULL);
    IsNaN(NULL);
    IsNaT(NULL);
@@ -6808,7 +6714,6 @@ void __DummyCalls() {
    iTrix(NULL, NULL, NULL, NULL, NULL);
    LE(NULL, NULL);
    log(NULL);
-   LogOrder(NULL);
    LogTicket(NULL);
    LT(NULL, NULL);
    MaMethodDescription(NULL);
@@ -6821,9 +6726,9 @@ void __DummyCalls() {
    Min(NULL, NULL);
    ModuleTypesToStr(NULL);
    MovingAverageMethodDescription(NULL);
+   MovingAverageMethodToStr(NULL);
    MQL.IsDirectory(NULL);
    MQL.IsFile(NULL);
-   MovingAverageMethodToStr(NULL);
    NameToColor(NULL);
    NE(NULL, NULL);
    NormalizeLots(NULL);
@@ -6909,7 +6814,6 @@ void __DummyCalls() {
    TimeframeFlag();
    TimeFXT();
    TimeGMT();
-   TimeLocalEx();
    TimeServer();
    TimeYearFix(NULL);
    Toolbar.Experts(NULL);
@@ -6938,7 +6842,6 @@ void __DummyCalls() {
    string   DoubleToStrEx(double value, int digits);
    int      Explode(string input, string separator, string results[], int limit);
    int      GetAccountNumber();
-   int      GetCustomLogID();
    string   GetHostName();
    int      GetIniKeys(string fileName, string section, string keys[]);
    string   GetServerName();
@@ -6953,7 +6856,6 @@ void __DummyCalls() {
    string   StdSymbol();
 
 #import "rsfExpander.dll"
-   bool     ec_CustomLogging(int ec[]);
    string   ec_ModuleName(int ec[]);
    string   ec_ProgramName(int ec[]);
    int      ec_SetMqlError(int ec[], int lastError);

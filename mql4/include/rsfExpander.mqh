@@ -67,13 +67,17 @@
    string   LocalTimeFormat(datetime timestamp, string format);
 
    // file functions
-   int      CreateDirectoryRecursive(string path);
+   int      CreateDirectoryA(string path, int flags);
    string   GetFinalPathNameA(string name);
    string   GetReparsePointTargetA(string name);
    bool     IsDirectoryA(string name);
    bool     IsFileA(string name);
+   bool     IsFileOrDirectoryA(string name);
    bool     IsJunctionA(string name);
    bool     IsSymlinkA(string name);
+
+   // logging
+   bool     LogMessageA(int ec[], string message, int error);
 
    // pointer utlities
    int      GetBoolsAddress  (bool   values[]);

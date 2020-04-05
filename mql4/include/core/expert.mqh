@@ -10,8 +10,9 @@ extern double   Tester.StartPrice               = 0;                 // price to
 
 #include <functions/InitializeByteBuffer.mqh>
 
-// current price series
-double rates[][6];
+
+double rates[][6];                                                   // current price series
+int    tickTimerId;                                                  // timer id for virtual ticks
 
 // test metadata
 string tester.starttime         = "";
@@ -199,7 +200,15 @@ int init() {
       return(last_error);
    ShowStatus(last_error);
 
-   // don't wait and immediately send a fake tick (except on UR_CHARTCHANGE)
+   // setup virtual ticks to continue operation on a stalled data feed
+   if (!IsTesting()) {
+      int hWnd    = __ExecutionContext[EC.hChart];
+      int millis  = 10 * 1000;                                             // every 10 seconds
+      tickTimerId = SetupTickTimer(hWnd, millis, NULL);
+      if (!tickTimerId) return(catch("init(18)->SetupTickTimer(hWnd="+ IntToHexStr(hWnd) +") failed", ERR_RUNTIME_ERROR));
+   }
+
+   // immediately send a virtual tick (except on UR_CHARTCHANGE)
    if (UninitializeReason() != UR_CHARTCHANGE)                             // At the very end, otherwise the Windows message
       Chart.SendTick();                                                    // queue may be processed before this function is
    return(last_error);                                                     // left and the tick gets lost.
@@ -246,20 +255,25 @@ int start() {
       if (IsDllsAllowed() && IsLibrariesAllowed() && __STATUS_OFF.reason!=ERR_TERMINAL_INIT_FAILURE) {
          if (__CHART()) ShowStatus(__STATUS_OFF.reason);
          static bool tester.stopped = false;
-         if (IsTesting() && !tester.stopped) {                                      // Stop the tester in case of errors.
-            Tester.Stop("start(1)");                                                // Covers errors in init(), too.
+         if (IsTesting() && !tester.stopped) {                                      // ctop the tester in case of errors
+            Tester.Stop("start(1)");                                                // covers errors in init(), too
             tester.stopped = true;
          }
       }
       return(last_error);
    }
 
+   // resolve tick status
    Tick++;                                                                          // simple counter, the value is meaningless
-   Tick.Time      = MarketInfo(Symbol(), MODE_TIME);
-   Tick.isVirtual = true;
-   ChangedBars    = -1;                                                             // in experts not available
-   UnchangedBars  = -1;                                                             // ...
-   ShiftedBars    = -1;                                                             // ...
+   Tick.Time = MarketInfo(Symbol(), MODE_TIME);
+   static int lastVolume;
+   if      (!Volume[0] || !lastVolume) Tick.isVirtual = true;
+   else if ( Volume[0] ==  lastVolume) Tick.isVirtual = true;
+   else                                Tick.isVirtual = false;
+   lastVolume = Volume[0];
+   ChangedBars   = -1;                                                              // in experts not available
+   UnchangedBars = -1;                                                              // ...
+   ShiftedBars   = -1;                                                              // ...
 
    // if called after init() check it's return value
    if (__WHEREAMI__ == CF_INIT) {
@@ -388,6 +402,13 @@ int deinit() {
       }
    }
 
+   // reset the virtual tick timer
+   if (tickTimerId != NULL) {
+      int id = tickTimerId;
+      tickTimerId = NULL;
+      if (!RemoveTickTimer(id)) return(catch("deinit(2)->RemoveTickTimer(timerId="+ id +") failed", ERR_RUNTIME_ERROR));
+   }
+
    // Execute user-specific deinit() handlers (if implemented). Handlers are executed as long as the previous handler doesn't
    // return with an error.
    error = onDeinit();                                                     // preprocessing hook
@@ -406,14 +427,14 @@ int deinit() {
          case UR_CLOSE      : error = onDeinitClose();         break;      //
                                                                            //
          default:                                                          //
-            CheckErrors("deinit(2)  unknown UninitializeReason = "+ UninitializeReason(), ERR_RUNTIME_ERROR);
+            CheckErrors("deinit(3)  unknown UninitializeReason = "+ UninitializeReason(), ERR_RUNTIME_ERROR);
             return(last_error|LeaveContext(__ExecutionContext));           //
       }                                                                    //
    }                                                                       //
    if (!error)                                                             //
       error = afterDeinit();                                               // postprocessing hook
 
-   CheckErrors("deinit(3)");
+   CheckErrors("deinit(4)");
    return(last_error|LeaveContext(__ExecutionContext));
 }
 

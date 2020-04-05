@@ -160,7 +160,7 @@ double   orders.profit      [];
 
 // --- other -------------------------------
 int      lastEventId;
-
+int      limitOrderTrailing;                       // limit trailing to one request per <x> seconds (default: 3)
 int      lastNetworkError;                         // the last trade server network error (if any)
 datetime nextRetry;                                // time of the next trade retry after a network error
 int      retries;                                  // number of retries so far
@@ -312,16 +312,21 @@ bool UpdateStatus(bool &gridChanged) {
 
 
 /**
- * Trail existing, open missing and delete obsolete pending orders. If open positions are missing, create pending orders for
- * those positions and add them to the list of missed order levels.
+ * Update all pending orders. Trail a first-level order or add new pending orders for all missing levels.
  *
+ * @param  int saveStatusMode [optional] - status saving mode, one of
+ *                                         SAVESTATUS_AUTO:    status is saved if order data changed
+ *                                         SAVESTATUS_ENFORCE: status is always saved
+ *                                         SAVESTATUS_SKIP:    status is never saved
+ *                                         (default: SAVESTATUS_AUTO)
  * @return bool - success status
  */
-bool UpdatePendingOrders() {
+bool UpdatePendingOrders(int saveStatusMode = SAVESTATUS_AUTO) {
    if (IsLastError())                         return(false);
    if (sequence.status != STATUS_PROGRESSING) return(!catch("UpdatePendingOrders(1)  "+ sequence.longName +" cannot update orders of "+ StatusDescription(sequence.status) +" sequence", ERR_ILLEGAL_STATE));
-
-   return(!catch("UpdatePendingOrders(2)", ERR_NOT_IMPLEMENTED));
+   if (saveStatusMode && saveStatusMode!=SAVESTATUS_ENFORCE && saveStatusMode!=SAVESTATUS_SKIP)
+                                              return(!catch("UpdatePendingOrders(2)  "+ sequence.longName +" invalid parameter saveStatusMode: "+ saveStatusMode, ERR_INVALID_PARAMETER));
+   return(!catch("UpdatePendingOrders(3)", ERR_NOT_IMPLEMENTED));
 }
 
 

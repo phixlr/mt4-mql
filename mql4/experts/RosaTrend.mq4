@@ -10,7 +10,7 @@ int __DEINIT_FLAGS__[];
 
 ////////////////////////////////////////////////////// Configuration ////////////////////////////////////////////////////////
 
-extern string UnitSize            = "[L]{double} | auto*";     // fixed (double), compounding (L{double}) or pre-configured (auto) unitsize
+extern string UnitSize            = "[L]{double} | auto*";     // fixed (double), compounding (L{double}) or externally configured (auto) unitsize
 extern string StartConditions     = "";                        //
 extern string StopConditions      = "";                        //
 extern bool   ShowProfitInPercent = true;                      // whether PL is displayed in absolute or percentage terms

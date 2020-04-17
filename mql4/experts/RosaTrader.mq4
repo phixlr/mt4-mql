@@ -1,8 +1,9 @@
 /**
- * RosaTrend - a simplistic trend following strategy
+ * RosaTrader
  *
  *
- * Note: Work in progress, not yet ready for testing or trading.
+ * Projected aim of this expert is a universal approach to execute simple trade systems.
+ * Work in progress, not yet ready for testing or trading.
  */
 #include <stddefines.mqh>
 int   __INIT_FLAGS__[] = {INIT_TIMEZONE, INIT_PIPVALUE};
@@ -10,7 +11,7 @@ int __DEINIT_FLAGS__[];
 
 ////////////////////////////////////////////////////// Configuration ////////////////////////////////////////////////////////
 
-extern string UnitSize            = "[L]{double} | auto*";     // fixed (double), compounding (L{double}) or externally configured (auto) unitsize
+extern string UnitSize            = "[L]{double} | auto*";     // {double} = fixed, L{double} = compounding, auto = externally configured
 extern string StartConditions     = "";                        //
 extern string StopConditions      = "";                        //
 extern bool   ShowProfitInPercent = true;                      // whether PL is displayed in absolute or percentage terms
